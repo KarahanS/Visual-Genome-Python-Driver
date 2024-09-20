@@ -56,3 +56,9 @@ Data loading, querying, and visualization are all done through the `VisualGenome
 ### Clustering
 
 We also offer a clustering approach for the images in the dataset, based on the K-Means algorithm. This method utilizes [sentence transformers](https://sbert.net/) to vectorize the region descriptions of the images. The results can be found in the [clustering.ipynb](https://github.com/KarahanS/Visual-Genome-Python-Driver/blob/main/clustering.ipynb) notebook.
+
+To be able to run the notebook, you have to install the requirements listed in [clustering-requirements.txt](https://github.com/KarahanS/Visual-Genome-Python-Driver/blob/main/clustering-requirements.txt), which is a superset of the `vg-requirements.txt` file. For reference, it uses PyTorch 2.4.1. for CUDA 12.1. You might need to install a different version of PyTorch for your system. Please refer to the [official website](https://pytorch.org/get-started/locally/) for more information. 
+
+```bash
+pip install -r clustering-requirements.txt
+```
