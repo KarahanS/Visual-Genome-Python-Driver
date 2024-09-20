@@ -40,17 +40,21 @@
         <div  style='margin: 10px;' class="row">
             <div class="col-4">
                 <div class="row" align='center'>
-                    <div class="col-4">
+                    <div class="col-3">
                         <div class='stat_element'>Objects:</div>
                         <div class='stat_element'><span id='num_objects'></span></div>
                     </div>
-                    <div class="col-4">
+                    <div class="col-3">
                         <div class='stat_element'>Attributes: </div>
                         <div class='stat_element'><span id='num_attributes'></span></div>
                     </div>
-                    <div class="col-4">
+                    <div class="col-3">
                         <div class='stat_element'>Relationships: </div>
                         <div class='stat_element'><span id='num_relationships'></span></div>
+                    </div>
+                    <div class="col-3">
+                        <div class='stat_element'>V/N: </div>
+                        <div class='stat_element'><span id='vertex_node_ratio'></span></div>
                     </div>
                 </div>
                 <!-- Add the image to the image-container div. -->
@@ -77,6 +81,7 @@
             $('#num_objects').text(graph.objects.length)
             $('#num_attributes').text(graph.attributes.length)
             $('#num_relationships').text(graph.relationships.length)
+            $('#vertex_node_ratio').text(((graph.attributes.length + graph.relationships.length * 2) / (graph.objects.length + graph.attributes.length + graph.relationships.length)).toFixed(2));
             renderSceneGraph('#image-graph', graph);
     </script>
 

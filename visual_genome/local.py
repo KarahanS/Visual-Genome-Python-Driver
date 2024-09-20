@@ -157,12 +157,15 @@ class VisualGenome:
         # get unique objects, attributes, and relationships
         # TODO: How to define uniqueness of objects, attributes, and relationships? - Synsets?
 
+        nodes = num_objects + num_attributes + num_relationships
+        vertices = num_attributes + num_relationships * 2
+
         return {
             "# of objects": num_objects,
             "# of attributes": num_attributes,
             "# of relationships": num_relationships,
+            "vertices to node ratio": f"{vertices / nodes:.2f}",
         }
-
     def get_image_regions(self, id):
         if isinstance(id, Image):
             id = id.id
