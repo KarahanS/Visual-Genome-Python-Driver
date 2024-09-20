@@ -15,7 +15,7 @@ This driver enhances functionality from the original [Visual Genome Python Drive
 Firstly, clone the repository into your local machine.
 
 ```bash
-git clone 
+git clone https://github.com/KarahanS/Visual-Genome-Python-Driver.git
 ```
 
 As the official API is not supported, you have to download the following data files from the Visual Genome website:
@@ -35,9 +35,9 @@ python setup.py
 
 ### Usage
 
-Data loading, querying, and visualization are all done through the `VisualGenome` class. To visualize the images, please have a look at the `demo.ipynb` notebook. There are some statistics about the dataset in the `analysis.ipynb` notebook.
+Data loading, querying, and visualization are all done through the `VisualGenome` class. To visualize the images, please have a look at the [demo.ipynb](https://github.com/KarahanS/Visual-Genome-Python-Driver/blob/main/demo.ipynb) notebook. There are some statistics about the dataset in the [analysis.ipynb](https://github.com/KarahanS/Visual-Genome-Python-Driver/blob/main/analysis.ipynb) notebook.
 
 
 ### Clustering
 
-We also offer a clustering approach for the images in the dataset, based on the K-Means algorithm. This method utilizes [sentence transformers](https://sbert.net/) to vectorize the region descriptions of the images. The results can be found in the `clustering.ipynb` notebook.
+We also offer a clustering approach for the images in the dataset, based on the K-Means algorithm. This method utilizes [sentence transformers](https://sbert.net/) to vectorize the region descriptions of the images. The results can be found in the [clustering.ipynb](https://github.com/KarahanS/Visual-Genome-Python-Driver/blob/main/clustering.ipynb) notebook.
