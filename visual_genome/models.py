@@ -94,12 +94,12 @@ class Object:
       width      int
       height     int
       names      string array
-      synsets    Synset array
+      synset    Synset
       image_id   int
       image_url  string
     """
 
-    def __init__(self, id, x, y, width, height, names, synsets, image_id, image_url):
+    def __init__(self, id, x, y, width, height, names, synset, image_id, image_url):
         self.id = id
         self.x = x
         self.y = y
@@ -113,14 +113,14 @@ class Object:
         self.name = (
             names[0] if names else "None"
         )  # Fallback to "None" if no names are provided
-        self.synsets = synsets
+        self.synset = synset
         self.image_id = image_id
         self.image_url = image_url
 
     def __str__(self):
         stat_str = (
             "object id: {0}, x: {1}, y: {2}, width: {3}, "
-            "height: {4}, name: {5}, image id: {6}, synsets: {7}"
+            "height: {4}, name: {5}, image id: {6}, synset: {7}"
         )
         return stat_str.format(
             self.id,
@@ -130,7 +130,7 @@ class Object:
             self.height,
             self.name,
             self.image_id,
-            self.synsets,
+            self.synset,
         )
 
     def __repr__(self):
@@ -154,7 +154,7 @@ class Relationship:
         predicate,
         object_id,
         object_name,
-        synsets,
+        synset,
         image_id,
     ):
         self.id = id
@@ -163,7 +163,7 @@ class Relationship:
         self.predicate = predicate
         self.object_id = object_id
         self.object_name = object_name
-        self.synsets = synsets
+        self.synset = synset
         self.image_id = image_id
 
     def __str__(self):

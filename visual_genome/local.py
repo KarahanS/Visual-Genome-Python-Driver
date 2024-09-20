@@ -23,6 +23,12 @@ class VisualGenome:
         self.attribute_synsets = self.get_synset_dictionary(
             "attribute_synsets.json", data_dir
         )
+        self.object_synsets = self.get_synset_dictionary(
+            "object_synsets.json", data_dir
+        )
+        self.relationship_synsets = self.get_synset_dictionary(
+            "relationship_synsets.json", data_dir
+        )
 
         images = self.get_all_image_data(data_dir)
         objects = self.get_all_objects(data_dir)
@@ -122,13 +128,13 @@ class VisualGenome:
         # Check if id is an instance of Image
         if isinstance(im, Image):
             im = im.id
-            
+
         attributes = []
         for obj in self.IMAGES[im]["objects"]:
             # Ensure obj.id is valid and has attributes
             if obj.id in self.OBJECTS and self.OBJECTS[obj.id]["attributes"]:
                 attributes.extend(self.OBJECTS[obj.id]["attributes"])
-    
+
         return attributes
 
     def get_image_relationships(self, im):
@@ -148,14 +154,34 @@ class VisualGenome:
     def get_statistics_for_image(self, im):
         if isinstance(im, Image):
             im = im.id
-        
+
+        objs = self.get_image_objects(im)
+        attrs = self.get_image_attributes(im)
+        rels = self.get_image_relationships(im)
         # Get the number of objects, attributes, and relationships for the image
-        num_objects = len(self.IMAGES[im]["objects"])
-        num_attributes = len(self.get_image_attributes(im))
-        num_relationships = len(self.get_image_relationships(im))
+        num_objects = len(objs)
+        num_attributes = len(attrs)
+        num_relationships = len(rels)
 
         # get unique objects, attributes, and relationships
         # TODO: How to define uniqueness of objects, attributes, and relationships? - Synsets?
+        def process_synsets(items, _):
+            synsets = set()
+            missing_synsets = 0
+            for item in items:
+                if item.synset:
+                    synsets.add(item.synset)
+                else:
+                    missing_synsets += 1
+            return synsets, missing_synsets
+
+        object_synsets, missing_object_synsets = process_synsets(objs, "object")
+        attribute_synsets, missing_attribute_synsets = process_synsets(
+            attrs, "attribute"
+        )
+        relationship_synsets, missing_relationship_synsets = process_synsets(
+            rels, "relationship"
+        )
 
         nodes = num_objects + num_attributes + num_relationships
         vertices = num_attributes + num_relationships * 2
@@ -165,7 +191,14 @@ class VisualGenome:
             "# of attributes": num_attributes,
             "# of relationships": num_relationships,
             "vertices to node ratio": f"{vertices / nodes:.2f}",
+            "# of unique objects": len(object_synsets),
+            "# of unique attributes": len(attribute_synsets),
+            "# of unique relationships": len(relationship_synsets),
+            "# of objects with missing synsets": missing_object_synsets,
+            "# of attributes with missing synsets": missing_attribute_synsets,
+            "# of relationships with missing synsets": missing_relationship_synsets,
         }
+
     def get_image_regions(self, id):
         if isinstance(id, Image):
             id = id.id
@@ -210,6 +243,20 @@ class VisualGenome:
                     "object": obj_id_to_index_map[rel.object_id],
                 }
             )
+
+        stats = self.get_statistics_for_image(image_id)
+        data["# of unique objects"] = stats["# of unique objects"]
+        data["# of unique attributes"] = stats["# of unique attributes"]
+        data["# of unique relationships"] = stats["# of unique relationships"]
+        data["# of objects with missing synsets"] = stats[
+            "# of objects with missing synsets"
+        ]
+        data["# of attributes with missing synsets"] = stats[
+            "# of attributes with missing synsets"
+        ]
+        data["# of relationships with missing synsets"] = stats[
+            "# of relationships with missing synsets"
+        ]
 
         return data
 
@@ -262,44 +309,62 @@ class VisualGenome:
         image = self.sample_images()
         self.display_image(image)
 
-    def synset_objects_histogram(self, image_ids=None):
+    def synset_histogram(self, y="objects", image_ids=None):
         """
-        Plots a horizontal bar histogram of synsets for the specified type of data ('objects', 'attributes', or 'relationships').
-
-        :param y: The type of data to plot ('objects', 'attributes', 'relationships').
+        Plots a horizontal bar histogram of synsets for the objects.
         :param image_ids: Optional list of image IDs to include. If None, include all images.
         """
-
+        if y not in ["objects", "attributes", "relationships"]:
+            raise ValueError(
+                f"Invalid value for 'y': {y}. Must be one of ['objects', 'attributes', 'relationships']."
+            )
         # Get the synset counts for the specified data type
         if image_ids is None:  # Use all images
-            synset_counts = [
-                len(obj.synsets)
-                for key in self.IMAGES
-                for obj in self.IMAGES[key]["objects"]
-            ]
-        else:
-            synset_counts = [
-                len(obj.synsets)
-                for id in image_ids
-                for obj in self.IMAGES[id]["objects"]
-            ]
+            synset_counts = {1: 0, 0: 0}
+            for key in self.IMAGES:
+                if y == "objects":
+                    l = self.get_image_objects(key)
+                elif y == "attributes":
+                    l = self.get_image_attributes(key)
+                else:
+                    l = self.get_image_relationships(key)
+                for el in l:
+                    if el.synset:
+                        synset_counts[1] += 1
+                    else:
+                        synset_counts[0] += 1
 
-        # Count the frequency of each unique synset count
-        unique_counts, counts_frequency = np.unique(synset_counts, return_counts=True)
+        else:
+            synset_counts = {1: 0, 0: 0}
+            for id in image_ids:
+                if y == "objects":
+                    l = self.get_image_objects(id)
+                elif y == "attributes":
+                    l = self.get_image_attributes(id)
+                else:
+                    l = self.get_image_relationships(id)
+                for el in l:
+                    if el.synset:
+                        synset_counts[1] += 1
+                    else:
+                        synset_counts[0] += 1
+
+        # Keys represent 'Has Synsets' (1) and 'No Synsets' (0)
+        unique_counts = list(synset_counts.keys())
+        counts_frequency = list(synset_counts.values())
 
         # Plot the horizontal bar histogram
         plt.figure(figsize=(10, 6))
         plt.barh(unique_counts, counts_frequency)
         plt.xlabel("Frequency")
-        plt.ylabel("Number of Synsets")
-        plt.title(f"Histogram of Synset Counts for Objects")
+        plt.ylabel("Has Synsets (1) / No Synsets (0)")
+        plt.title(f"Histogram of Synset Counts for {y}")
 
-        # Add value labels on bars, formatted with commas
+        # Add value labels on bars
         for index, value in enumerate(counts_frequency):
             plt.text(value, unique_counts[index], f"{value:,}", va="center")
 
         plt.tight_layout()
-        plt.show()
 
     def get_synset_dictionary(self, synset_json, data_dir=None):
         """
@@ -371,8 +436,6 @@ class VisualGenome:
         plt.ylabel("Number of images")
         plt.title(f"Histogram of number of {y} in images")
 
-        # Adjust x-ticks to be centered on bins
-        plt.xticks(ticks=bin_centers)
         plt.xticks([])
         plt.show()
 
@@ -432,7 +495,7 @@ class VisualGenome:
         plt.tight_layout()
         plt.show()
 
-    def visualize_cluster(self, df,  cluster, n=3):
+    def visualize_cluster(self, df, cluster, n=3):
         # Get nxn images from this cluster
         cluster_df = df[df["cluster"] == cluster]
         image_ids = cluster_df["Image_id"].tolist()
@@ -563,7 +626,9 @@ class VisualGenome:
         for image in images:
             image_id = image["image_id"]
             relationships.append(
-                utils.parse_relationships(image["relationships"], image_id)
+                utils.parse_relationships(
+                    image["relationships"], image_id, self.relationship_synsets
+                )
             )
 
         return relationships
@@ -638,21 +703,11 @@ class VisualGenome:
         for image in images:
             image_url = image["image_url"] if "image_url" in image else None
             output.append(
-                utils.parse_objects(image["objects"], image["image_id"], image_url)
+                utils.parse_objects(
+                    image["objects"], image["image_id"], image_url, self.object_synsets
+                )
             )
         return output
-
-    def get_objects_of_image(self, id=61512, data_dir=None):
-        if data_dir is None:
-            data_dir = utils.get_data_dir()
-
-        data_file = os.path.join(data_dir, "objects.json")
-        images = json.load(open(data_file))
-        for image in images:
-            if image["image_id"] == id:
-                return utils.parse_objects(image["objects"], id, image["image_url"])
-        print("Image not found")
-        return None
 
     def get_all_qas(self, data_dir=None):
         """
@@ -774,13 +829,7 @@ class VisualGenome:
                     to_write = ""
                     if synsets is True:
                         # Handle synsets formatting
-                        if obj.synsets:
-                            synsets_str = ", ".join(
-                                obj.synsets
-                            )  # Join the list into a string
-                        else:
-                            synsets_str = "No synsets"
-
+                        synsets_str = obj.synset if obj.synset else "No synsets"
                         to_write = f"{obj.name}\n{synsets_str}"
                     else:
                         to_write = f"{obj.name}"
@@ -972,7 +1021,7 @@ class VisualGenome:
         }
 
         for obj in scene_graph.objects:
-            obj.synsets = [syn_class[sn] for sn in obj.synsets]
+            obj.synset = [syn_class[sn] for sn in obj.synset]
         for rel in scene_graph.relationships:
             rel.synset = [syn_class[sn] for sn in rel.synset]
         for attr in scene_graph.attributes:

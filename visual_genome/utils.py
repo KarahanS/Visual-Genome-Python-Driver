@@ -140,7 +140,7 @@ def parse_attributes(data, image_id, attribute_synsets):
     return attributes
 
 
-def parse_relationships(data, image_id):
+def parse_relationships(data, image_id, relationship_synsets):
     """
     Helper to parse relationships.
     """
@@ -155,6 +155,9 @@ def parse_relationships(data, image_id):
             subject_name = info["subject"]["names"][0]
         else:
             subject_name = info["subject"]["name"]
+        synset = relationship_synsets.get(info["predicate"].lower(), None)
+        if synset is None and len(info["synsets"]) > 0:
+            synset = info["synsets"][0]
         relationships.append(
             Relationship(
                 info["relationship_id"],
@@ -163,20 +166,24 @@ def parse_relationships(data, image_id):
                 info["predicate"],
                 info["object"]["object_id"],
                 object_name,
-                info["synsets"],
+                synset,
                 image_id,
             )
         )
     return relationships
 
 
-def parse_objects(data, image_id, image_url):
+def parse_objects(data, image_id, image_url, object_synsets):
     """
     Helper to parse objects.
     """
     objects = []
     # data = [objects]
     for info in data:
+        # experimental
+        synset = object_synsets.get(info["names"][0].lower(), None)
+        if synset is None and len(info["synsets"]) > 0:
+            synset = info["synsets"][0]
         objects.append(
             Object(
                 info["object_id"],
@@ -185,7 +192,7 @@ def parse_objects(data, image_id, image_url):
                 info["w"],
                 info["h"],
                 info["names"],
-                info["synsets"],
+                synset,
                 image_id,
                 image_url,
             )

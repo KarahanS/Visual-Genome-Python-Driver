@@ -44,6 +44,12 @@ def visualize_scene_graph(graph, js_file):
         "attributes": [],
         "relationships": [],
         "url": graph["url"],
+        "unique_objects": 0,
+        "unique_attrs": 0,
+        "unique_rels": 0,
+        "objects_without_synsets": 0,
+        "attributes_without_synsets": 0,
+        "relationships_without_synsets": 0,
     }
     for obj in graph["objects"]:
         name = ""
@@ -54,6 +60,16 @@ def visualize_scene_graph(graph, js_file):
         scene_graph["objects"].append({"name": name})
     scene_graph["attributes"] = graph["attributes"]
     scene_graph["relationships"] = graph["relationships"]
+    scene_graph["unique_objects"] = graph["# of unique objects"]
+    scene_graph["unique_attrs"] = graph["# of unique attributes"]
+    scene_graph["unique_rels"] = graph["# of unique relationships"]
+    scene_graph["objects_without_synsets"] = graph["# of objects with missing synsets"]
+    scene_graph["attributes_without_synsets"] = graph[
+        "# of attributes with missing synsets"
+    ]
+    scene_graph["relationships_without_synsets"] = graph[
+        "# of relationships with missing synsets"
+    ]
 
     generate_graph_js(scene_graph, js_file)
     html_file_path = get_html_path()

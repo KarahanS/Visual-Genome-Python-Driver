@@ -14,60 +14,91 @@
     <script src="graphlib.min.js"></script>
     <script src="joint.js"></script>
 
-
     <!-- Define the styles of the graphs. -->
     <style>
-      g text {
-        font-weight: 300;
-        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-        font-size: 14px;
-      }
-      .object rect{
-        fill:rgba(255,0,0,0.3);
-      }
-      .pred rect{
-        fill:rgba(0,255,0,0.3);
-      }
-      .attr rect{
-        fill:rgba(0,0,255,0.3);
-      }
+        g text {
+            font-weight: 300;
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: 14px;
+        }
+
+        .object rect {
+            fill: rgba(255, 0, 0, 0.3);
+        }
+
+        .pred rect {
+            fill: rgba(0, 255, 0, 0.3);
+        }
+
+        .attr rect {
+            fill: rgba(0, 0, 255, 0.3);
+        }
     </style>
 
-    </head>
+</head>
+
 <body>
     <!-- List basic statistics of the graph. -->
     <div class='container'>
-        <div  style='margin: 10px;' class="row">
-            <div class="col-4">
-                <div class="row" align='center'>
+        <div style='margin: 10px;' class="row">
+            <div class="col-12">
+                <div class="row text-center">
                     <div class="col-3">
                         <div class='stat_element'>Objects:</div>
                         <div class='stat_element'><span id='num_objects'></span></div>
                     </div>
                     <div class="col-3">
-                        <div class='stat_element'>Attributes: </div>
+                        <div class='stat_element'>Attributes:</div>
                         <div class='stat_element'><span id='num_attributes'></span></div>
                     </div>
                     <div class="col-3">
-                        <div class='stat_element'>Relationships: </div>
+                        <div class='stat_element'>Relationships:</div>
                         <div class='stat_element'><span id='num_relationships'></span></div>
                     </div>
                     <div class="col-3">
-                        <div class='stat_element'>V/N: </div>
+                        <div class='stat_element'>V/N:</div>
                         <div class='stat_element'><span id='vertex_node_ratio'></span></div>
+                    </div>
+                    <div class="col-2">
+                        <div class='stat_element'>Unique objects:</div>
+                        <div class='stat_element'><span id='unique_objects'></span></div>
+                    </div>
+                    <div class="col-2">
+                        <div class='stat_element'>Unique Attributes:</div>
+                        <div class='stat_element'><span id='unique_attrs'></span></div>
+                    </div>
+                    <div class="col-2">
+                        <div class='stat_element'>Unique Relationships:</div>
+                        <div class='stat_element'><span id='unique_rels'></span></div>
+                    </div>
+                    <div class="col-2">
+                        <div class='stat_element'>Objects with missing synsets:</div>
+                        <div class='stat_element'><span id='objects_without_synsets'></span></div>
+                    </div>
+                    <div class="col-2">
+                        <div class='stat_element'>Attributes with missing synsets:</div>
+                        <div class='stat_element'><span id='attributes_without_synsets'></span></div>
+                    </div>
+                    <div class="col-2">
+                        <div class='stat_element'>Relationships with missing synsets:</div>
+                        <div class='stat_element'><span id='relationships_without_synsets'></span></div>
                     </div>
                 </div>
                 <!-- Add the image to the image-container div. -->
-                <div id='image-container'></div>
-            </div>
-            <div class="col-8">
-                <!-- Creates the graph visualization in the image-graph div. -->
-                <div style='margin: 50px;' id='image-graph'></div>
+                <div class="row">
+                    <div class="col-6">
+                        <div id='image-container'></div>
+                    </div>
+                    <div class="col-6">
+                        <!-- Creates the graph visualization in the image-graph div. -->
+                        <div style='margin: 50px;' id='image-graph'></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Location of where the graph is stored as  js file. I read from a javascript file to avoid cross origin errors. -->
+    <!-- Location of where the graph is stored as js file. I read from a javascript file to avoid cross origin errors. -->
     <script type='text/javascript' src='scene_graph.js'></script>
 
     <!-- Load function that generates the graph visualization. -->
@@ -78,12 +109,19 @@
         var imageContainer = $('#image-container');
         var image = $("<img style='width:400px; height:400px;' src='" + graph.url + "'></img>");
         imageContainer.append(image);
-            $('#num_objects').text(graph.objects.length)
-            $('#num_attributes').text(graph.attributes.length)
-            $('#num_relationships').text(graph.relationships.length)
-            $('#vertex_node_ratio').text(((graph.attributes.length + graph.relationships.length * 2) / (graph.objects.length + graph.attributes.length + graph.relationships.length)).toFixed(2));
-            renderSceneGraph('#image-graph', graph);
+        $('#num_objects').text(graph.objects.length)
+        $('#num_attributes').text(graph.attributes.length)
+        $('#num_relationships').text(graph.relationships.length)
+        $('#vertex_node_ratio').text(((graph.attributes.length + graph.relationships.length * 2) / (graph.objects.length + graph.attributes.length + graph.relationships.length)).toFixed(2));
+        $('#unique_objects').text(graph.unique_objects)
+        $('#unique_attrs').text(graph.unique_attrs)
+        $('#unique_rels').text(graph.unique_rels)
+        $('#objects_without_synsets').text(graph.objects_without_synsets)
+        $('#attributes_without_synsets').text(graph.attributes_without_synsets)
+        $('#relationships_without_synsets').text(graph.relationships_without_synsets)
+        renderSceneGraph('#image-graph', graph);
     </script>
 
 </body>
+
 </html>

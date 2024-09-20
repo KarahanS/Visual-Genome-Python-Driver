@@ -11,6 +11,8 @@ urls = {
     "attributes.json.zip": "https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/attributes.json.zip",
     "relationships.json.zip": "https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/relationships.json.zip",
     "attributes_synsets.json.zip": "https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/attribute_synsets.json.zip",
+    "object_synsets.json.zip": "https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/object_synsets.json.zip",
+    "relationship_synsets.json.zip": "https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/relationship_synsets.json.zip",
 }
 
 # Create 'data' directory if it doesn't exist
