@@ -25,6 +25,8 @@ As the official API is not supported, you have to download the following data fi
 - [attributes.json](https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/attributes.json.zip)
 - [relationships.json](https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/relationships.json.zip)
 - [attributes_synsets.json](https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/attribute_synsets.json.zip)
+- [object_synsets.json](https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/object_synsets.json.zip)
+- [relationship_synsets.json](https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/relationship_synsets.json.zip)
 
 Please locate all your downloaded files in a directory called `data/` in the root of the repository. In total, it should take up ~2.5GB of space on disk. You can directly run the `setup.py` to download the files and locate them in the correct directory.
 
