@@ -32,6 +32,21 @@ Please locate all your downloaded files in a directory called `data/` in the roo
 python setup.py
 ```
 
+Then, to be able to use [demo.ipynb](https://github.com/KarahanS/Visual-Genome-Python-Driver/blob/main/demo.ipynb) notebook, you have to create a virtual environment and install the necessary packages. You can use any virtual environment manager you like, one example is given below.
+
+```bash
+python -m venv env
+source env/bin/activate  # For Linux
+env\Scripts\activate  # For Windows
+```
+
+Install the required packages using the following command.
+
+```bash
+pip install -r vg-requirements.txt
+```
+
+
 
 ### Usage
 

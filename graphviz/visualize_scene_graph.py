@@ -91,7 +91,6 @@ if __name__ == "__main__":
 
     graph_path = get_path(args.graph)  # Get the adjusted graph path
     js_file_path = get_path(args.js_file)  # Ensure JS file is in graphviz folder
-    print(graph_path, js_file_path)
 
     with open(graph_path) as graph_file:
         graph = json.load(graph_file)
