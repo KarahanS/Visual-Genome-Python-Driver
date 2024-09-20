@@ -1,6 +1,6 @@
 # Visual Genome Python Driver
 
-This repository contains a Python driver for the [Visual Genome dataset](https://visualgenome.org/), an extensive dataset and knowledge base designed to connect structured image concepts with language. Visual Genome includes 108,077 images annotated with objects, attributes, relationships, and region descriptions.
+This repository contains a Python driver for the [Visual Genome dataset](https://homes.cs.washington.edu/~ranjay/visualgenome/index.html), an extensive dataset and knowledge base designed to connect structured image concepts with language. Visual Genome includes 108,077 images annotated with objects, attributes, relationships, and region descriptions.
 
 The main goal of this repository is to offer a simple, easy-to-use interface for:
 - Visualizing images and their annotations, including scene graphs.

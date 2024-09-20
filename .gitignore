@@ -56,7 +56,6 @@ python-env-tools/**
 
 # extra
 csv
-ids.txt
 image_regions.csv
 env
 data/*.json
