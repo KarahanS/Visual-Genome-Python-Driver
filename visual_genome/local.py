@@ -145,6 +145,24 @@ class VisualGenome:
                     id_set.add(rel.id)
         return relationships
 
+    def get_statistics_for_image(self, im):
+        if isinstance(im, Image):
+            im = im.id
+        
+        # Get the number of objects, attributes, and relationships for the image
+        num_objects = len(self.IMAGES[im]["objects"])
+        num_attributes = len(self.get_image_attributes(im))
+        num_relationships = len(self.get_image_relationships(im))
+
+        # get unique objects, attributes, and relationships
+        # TODO: How to define uniqueness of objects, attributes, and relationships? - Synsets?
+
+        return {
+            "# of objects": num_objects,
+            "# of attributes": num_attributes,
+            "# of relationships": num_relationships,
+        }
+
     def get_image_regions(self, id):
         if isinstance(id, Image):
             id = id.id
