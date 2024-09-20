@@ -113,20 +113,31 @@ class VisualGenome:
     def get_region(self, id):
         return self.REGIONS[id]
 
-    def get_image_objects(self, id):
-        return self.IMAGES[id]["objects"]
+    def get_image_objects(self, im):
+        if isinstance(im, Image):
+            im = im.id
+        return self.IMAGES[im]["objects"]
 
-    def get_image_attributes(self, id):
+    def get_image_attributes(self, im):
+        # Check if id is an instance of Image
+        if isinstance(im, Image):
+            im = im.id
+            
         attributes = []
-        for obj in self.IMAGES[id]["objects"]:
-            if self.OBJECTS[obj.id]["attributes"]:
+        for obj in self.IMAGES[im]["objects"]:
+            # Ensure obj.id is valid and has attributes
+            if obj.id in self.OBJECTS and self.OBJECTS[obj.id]["attributes"]:
                 attributes.extend(self.OBJECTS[obj.id]["attributes"])
+    
         return attributes
 
-    def get_image_relationships(self, id):
+    def get_image_relationships(self, im):
+        if isinstance(im, Image):
+            im = im.id
+
         relationships = []
         id_set = set()
-        for obj in self.IMAGES[id]["objects"]:
+        for obj in self.IMAGES[im]["objects"]:
             rels = self.OBJECTS[obj.id]["relationships"]
             for rel in rels:
                 if rel.id not in id_set:
@@ -135,6 +146,8 @@ class VisualGenome:
         return relationships
 
     def get_image_regions(self, id):
+        if isinstance(id, Image):
+            id = id.id
         return self.IMAGES[id]["regions"]
 
     def get_all_image_data(self, data_dir=None):
