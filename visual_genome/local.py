@@ -12,6 +12,8 @@ import deprecation
 import numpy as np
 import matplotlib.ticker as ticker
 import random
+import pandas as pd
+import cv2
 
 
 class VisualGenome:
@@ -30,23 +32,29 @@ class VisualGenome:
             "relationship_synsets.json", data_dir
         )
 
+        self.object_aliases = self.get_alias("object_alias.txt", data_dir)
+        self.relationship_alias = self.get_alias("relationship_alias.txt", data_dir)
+
         images = self.get_all_image_data(data_dir)
         objects = self.get_all_objects(data_dir)
         region_descriptions = self.get_all_region_descriptions(data_dir)
         attributes = self.get_all_attributes(data_dir)
         relationships = self.get_all_relationships(data_dir)
-        qas = self.get_all_qas(data_dir)
+        # qas = self.get_all_qas(data_dir)
 
         self.IMAGES = {}
         self.REGIONS = {}
         self.OBJECTS = {}
         self.ATTRIBUTES = {}
         self.RELATIONSHIPS = {}
+        self.SAM = None
+        self.SAM2 = None
+        self.FC_CLIP = None
 
         for image in images:
             self.IMAGES[image.id] = {"image": image, "regions": [], "objects": []}
 
-        for image_regions, image_objects, image_attributes, image_relationhips in zip(
+        for image_regions, image_objects, image_attributes, image_relationships in zip(
             region_descriptions, objects, attributes, relationships
         ):
             # Process regions
@@ -73,7 +81,7 @@ class VisualGenome:
                     attr.object_id in self.OBJECTS
                 ):  # ignore attributes on merged objects
                     self.OBJECTS[attr.object_id]["attributes"].append(attr)
-            for rel in image_relationhips:
+            for rel in image_relationships:
                 self.RELATIONSHIPS[rel.id] = rel
                 if (
                     rel.subject_id in self.OBJECTS and rel.object_id in self.OBJECTS
@@ -83,13 +91,49 @@ class VisualGenome:
 
         print("Data loaded.")
 
+    def load_sam_results(self, sam_file="sam.json", version=1, data_dir="data/"):
+        """
+        Loads SAM results from a .json file.
+
+        Args:
+            data_dir (str, optional): Directory containing the SAM file. Defaults to "data/".
+            sam_file (str, optional): Filename of the SAM file. Defaults to "sam.json".
+            version (int, optional): Version of the SAM results (1 or 2). Defaults to 1.
+
+        Returns:
+            dict: Loaded SAM results.
+
+        Raises:
+            ValueError: If an invalid version is passed or if file loading fails.
+        """
+        if version not in [1, 2]:
+            raise ValueError("Invalid version. Must be 1 or 2.")
+
+        if version == 2:
+            sam_file = "sam2.json"
+
+        sam_file_path = os.path.join(data_dir, sam_file)
+
+        try:
+            with open(sam_file_path, "r") as file:
+                sam_results = json.load(file)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            raise ValueError(f"Failed to load SAM results from {sam_file_path}: {e}")
+
+        if version == 1:
+            self.SAM = {int(key): value for key, value in sam_results.items()}
+        else:
+            self.SAM2 = {int(key): value for key, value in sam_results.items()}
+
+        return sam_results
+
     def get_images(self):
         """
         Get all images.
         """
         return self.IMAGES
 
-    def get_images_with_n_objects(self, n, at_least=False):
+    def get_images_with_n_objects(self, n, at_least=False, image_ids=None):
         """
         Get images with exactly n objects or with n or more objects.
 
@@ -103,15 +147,28 @@ class VisualGenome:
             )
 
         images = []
-        for image_id in self.IMAGES:
-            num_objects = len(self.IMAGES[image_id]["objects"])
-            if (at_least and num_objects >= n) or (not at_least and num_objects == n):
-                images.append(self.IMAGES[image_id]["image"])
+        if image_ids is None:
+            for image_id in self.IMAGES:
+                num_objects = len(self.IMAGES[image_id]["objects"])
+                if (at_least and num_objects >= n) or (
+                    not at_least and num_objects == n
+                ):
+                    images.append(self.IMAGES[image_id]["image"])
+        else:
+            for image_id in image_ids:
+                num_objects = len(self.IMAGES[image_id]["objects"])
+                if (at_least and num_objects >= n) or (
+                    not at_least and num_objects == n
+                ):
+                    images.append(self.IMAGES[image_id]["image"])
 
         return images
 
     def get_image(self, id):
         return self.IMAGES[id]["image"]
+
+    def get_all_image_ids(self):
+        return list(self.IMAGES.keys())
 
     def get_object(self, id):
         return self.OBJECTS[id]["object"]
@@ -136,6 +193,27 @@ class VisualGenome:
                 attributes.extend(self.OBJECTS[obj.id]["attributes"])
 
         return attributes
+
+    def get_entity_without_synsets(self, entity_type):
+        if entity_type not in ["objects", "attributes", "relationships"]:
+            raise ValueError(
+                f"Invalid entity type: {entity_type}. Must be one of ['objects', 'attributes', 'relationships']."
+            )
+
+        entities = []
+        for key in self.IMAGES:
+            cand = []
+            if entity_type == "objects":
+                cand = self.get_image_objects(key)
+            elif entity_type == "attributes":
+                cand = self.get_image_attributes(key)
+            else:
+                cand = self.get_image_relationships(key)
+            for el in cand:
+                syn = el.synsets if entity_type == "objects" else el.synset
+                if not syn:
+                    entities.append(el)
+        return entities
 
     def get_image_relationships(self, im):
         if isinstance(im, Image):
@@ -169,13 +247,43 @@ class VisualGenome:
             synsets = set()
             missing_synsets = 0
             for item in items:
+
                 if item.synset:
                     synsets.add(item.synset)
                 else:
                     missing_synsets += 1
             return synsets, missing_synsets
 
-        object_synsets, missing_object_synsets = process_synsets(objs, "object")
+        # TODO: get object synsets carefully
+        # object_synsets, missing_object_synsets = process_synsets(objs, "object")
+
+        # create a graph of objects
+        graph = {}
+        objects_without_synset = 0
+        for obj in objs:
+            graph[obj] = []
+            if not obj.synsets:
+                objects_without_synset += 1
+            for synset in obj.synsets:
+                for other in objs:
+                    if other.id != obj.id:
+                        for syn in other.synsets:
+                            if syn == synset:
+                                graph[obj].append(other)
+
+        # find number of connected components in this graph
+        visited = set()
+        components = 0
+        for obj in objs:
+            if obj not in visited:
+                components += 1
+                stack = [obj]
+                while stack:
+                    node = stack.pop()
+                    if node not in visited:
+                        visited.add(node)
+                        stack.extend(graph[node])
+
         attribute_synsets, missing_attribute_synsets = process_synsets(
             attrs, "attribute"
         )
@@ -186,18 +294,28 @@ class VisualGenome:
         nodes = num_objects + num_attributes + num_relationships
         vertices = num_attributes + num_relationships * 2
 
-        return {
+        vn = f"{vertices / nodes:.2f}" if nodes != 0 else "N/A"
+
+        stat = {
             "# of objects": num_objects,
             "# of attributes": num_attributes,
             "# of relationships": num_relationships,
-            "vertices to node ratio": f"{vertices / nodes:.2f}",
-            "# of unique objects": len(object_synsets),
+            "vertices to node ratio": vn,
+            "# of unique objects": components,
             "# of unique attributes": len(attribute_synsets),
             "# of unique relationships": len(relationship_synsets),
-            "# of objects with missing synsets": missing_object_synsets,
+            "# of objects with missing synsets": objects_without_synset,
             "# of attributes with missing synsets": missing_attribute_synsets,
             "# of relationships with missing synsets": missing_relationship_synsets,
         }
+        if self.SAM:
+            stat["SAM - Number of segmentations"] = self.SAM[im]
+        if self.SAM2:
+            stat["SAM2 - Number of segmentations"] = self.SAM2[im]
+        if self.FC_CLIP:
+            stat["FC-CLIP - Number of unique classes"] = self.FC_CLIP[im]
+
+        return stat
 
     def get_image_regions(self, id):
         if isinstance(id, Image):
@@ -257,8 +375,80 @@ class VisualGenome:
         data["# of relationships with missing synsets"] = stats[
             "# of relationships with missing synsets"
         ]
+        data["# of SAM segmentations"] = "Not available"
+        data["# of SAM 2 segmentations"] = "Not available"
+        data["# of FC-CLIP classes"] = "Not available"
+
+        if self.SAM:
+            data["# of SAM segmentations"] = self.SAM[image_id]
+        if self.SAM2:
+            data["# of SAM 2 segmentations"] = self.SAM2[image_id]
+        if self.FC_CLIP:
+            data["# of FC-CLIP classes"] = self.FC_CLIP[image_id]
 
         return data
+
+    def read_masks_from_folder(self, image_id, anns_file="metadata.csv", data_dir=None):
+        """
+        Reads masks and metadata from the specified folder.
+
+        Args:
+            data_dir (str): The folder path containing masks and metadata.csv.
+
+        Returns:
+            list: A list of dictionaries containing the reconstructed mask data.
+        """
+        masks = []
+        if data_dir is None:
+            data_dir = utils.get_data_dir()
+        data_path = os.path.join(data_dir, str(image_id))
+        metadata_path = os.path.join(data_path, anns_file)
+
+        # check if data_path exists
+        if not os.path.exists(data_path):
+            raise FileNotFoundError(
+                f"Data path {data_path} not found. Make sure to create a subfolder named after the image ID, and place the segmentation masks and metadata.csv in this folder."
+            )
+
+        with open(metadata_path, "r") as f:
+            lines = f.readlines()
+
+        header = lines[0].strip().split(",")
+
+        # Iterate over metadata rows (skip header)
+        for line in lines[1:]:
+            mask_data = line.strip().split(",")
+            mask_dict = {
+                "id": int(mask_data[0]),
+                "area": float(mask_data[1]),
+                "bbox": [
+                    float(mask_data[2]),
+                    float(mask_data[3]),
+                    float(mask_data[4]),
+                    float(mask_data[5]),
+                ],
+                "point_coords": [[float(mask_data[6]), float(mask_data[7])]],
+                "predicted_iou": float(mask_data[8]),
+                "stability_score": float(mask_data[9]),
+                "crop_box": [
+                    float(mask_data[10]),
+                    float(mask_data[11]),
+                    float(mask_data[12]),
+                    float(mask_data[13]),
+                ],
+            }
+            # Read the corresponding mask image
+            mask_file = os.path.join(data_path, f"{mask_data[0]}.png")
+            mask = cv2.imread(mask_file, cv2.IMREAD_GRAYSCALE)
+            if mask is not None:
+                mask = mask / 255  # Convert back to binary mask (0 or 1)
+                mask_dict["segmentation"] = mask
+            else:
+                raise FileNotFoundError(f"Mask file {mask_file} not found.")
+
+            masks.append(mask_dict)
+
+        return masks
 
     def sample_images(self, cnt=1):
         """
@@ -275,6 +465,55 @@ class VisualGenome:
         ]
         if len(sample) == 1:
             return sample[0]
+
+    def show_anns(
+        self, image_id, anns_file="metadata.csv", data_dir=None, borders=True
+    ):
+        anns = self.read_masks_from_folder(image_id, anns_file, data_dir)
+
+        if len(anns) == 0:
+            return
+        sorted_anns = sorted(anns, key=(lambda x: x["area"]), reverse=True)
+        ax = plt.gca()
+        ax.set_autoscale_on(False)
+
+        img = np.ones(
+            (
+                sorted_anns[0]["segmentation"].shape[0],
+                sorted_anns[0]["segmentation"].shape[1],
+                4,
+            )
+        )
+        img[:, :, 3] = 0
+        for ann in sorted_anns:
+            m = ann["segmentation"]
+            m_bool = m.astype(bool)  # binary mask
+            color_mask = np.concatenate([np.random.random(3), [0.5]])
+            img[m_bool] = color_mask
+            if borders:
+                contours, _ = cv2.findContours(
+                    m.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE
+                )
+                # Try to smooth contours
+                contours = [
+                    cv2.approxPolyDP(contour, epsilon=0.01, closed=True)
+                    for contour in contours
+                ]
+                cv2.drawContours(img, contours, -1, (0, 0, 1, 0.4), thickness=1)
+
+        ax.imshow(img)
+
+    def visualize_segmentations(self, im):
+        if isinstance(im, Image):
+            im = im.id
+
+        response = requests.get(self.get_image(im).url)
+        img = PIL_Image.open(BytesIO(response.content))
+
+        plt.imshow(img)  # original image
+        self.show_anns(im, "metadata.csv")
+        plt.axis("off")
+        plt.show()
 
     def sample_image_id(self, start=None, end=None):
         """
@@ -302,6 +541,33 @@ class VisualGenome:
         else:
             raise ValueError(f"No image IDs found in the range {start} to {end}.")
 
+    def sample_image_ids(self, cnt=1, start=None, end=None):
+        """
+        Samples a list of random image IDs from self.IMAGES within the specified range.
+
+        :param cnt: Number of image IDs to sample.
+        :param start: Starting index (inclusive) of the range. Defaults to the minimum key.
+        :param end: Ending index (exclusive) of the range. Defaults to the maximum key + 1.
+        :return: List of randomly sampled image IDs from self.IMAGES.
+        """
+        # Determine the full range of keys
+        all_keys = sorted(self.IMAGES.keys())
+
+        # Set default start and end if not provided
+        if start is None:
+            start = all_keys[0]
+        if end is None:
+            end = all_keys[-1] + 1
+
+        # Filter image IDs within the specified range
+        valid_ids = [key for key in all_keys if start <= key < end]
+
+        # Sample a random ID from the valid ones
+        if valid_ids:
+            return random.sample(valid_ids, cnt)
+        else:
+            raise ValueError(f"No image IDs found in the range {start} to {end}.")
+
     def display_random_image(self):
         """
         Display a random image from the dataset.
@@ -320,7 +586,7 @@ class VisualGenome:
             )
         # Get the synset counts for the specified data type
         if image_ids is None:  # Use all images
-            synset_counts = {1: 0, 0: 0}
+            synset_counts = {1: 0, 0: 0} if y != "objects" else {1: 0, 0: 0, 2: 0, 3: 0}
             for key in self.IMAGES:
                 if y == "objects":
                     l = self.get_image_objects(key)
@@ -329,13 +595,16 @@ class VisualGenome:
                 else:
                     l = self.get_image_relationships(key)
                 for el in l:
-                    if el.synset:
-                        synset_counts[1] += 1
+                    synsets = el.synsets if y == "objects" else el.synset
+                    if synsets:
+                        if type(synsets) != list:
+                            synsets = [synsets]
+                        synset_counts[len(synsets)] += 1
                     else:
                         synset_counts[0] += 1
 
         else:
-            synset_counts = {1: 0, 0: 0}
+            synset_counts = {1: 0, 0: 0} if y != "objects" else {1: 0, 0: 0, 2: 0, 3: 0}
             for id in image_ids:
                 if y == "objects":
                     l = self.get_image_objects(id)
@@ -344,8 +613,11 @@ class VisualGenome:
                 else:
                     l = self.get_image_relationships(id)
                 for el in l:
-                    if el.synset:
-                        synset_counts[1] += 1
+                    synsets = el.synsets if y == "objects" else el.synset
+                    if synsets:
+                        if type(synsets) != list:
+                            synsets = [synsets]
+                        synset_counts[len(synsets)] += 1
                     else:
                         synset_counts[0] += 1
 
@@ -357,7 +629,7 @@ class VisualGenome:
         plt.figure(figsize=(10, 6))
         plt.barh(unique_counts, counts_frequency)
         plt.xlabel("Frequency")
-        plt.ylabel("Has Synsets (1) / No Synsets (0)")
+        plt.ylabel("Synset Counts")
         plt.title(f"Histogram of Synset Counts for {y}")
 
         # Add value labels on bars
@@ -365,6 +637,26 @@ class VisualGenome:
             plt.text(value, unique_counts[index], f"{value:,}", va="center")
 
         plt.tight_layout()
+
+    def get_alias(self, alias_file, data_dir=None):
+        if data_dir is None:
+            data_dir = utils.get_data_dir()
+
+        alias_file = os.path.join(data_dir, alias_file)
+        aliases = []
+        with open(alias_file, "r") as file:
+            for line in file:
+                line = line.strip().split(",")
+                intersect = False
+                for alias in aliases:
+                    if len(alias.intersection(set(line))) > 0:
+                        intersect = True
+                        alias.update(set(line))
+                        break
+                if not intersect:
+                    aliases.append(set(line))
+
+        return aliases
 
     def get_synset_dictionary(self, synset_json, data_dir=None):
         """
@@ -377,6 +669,9 @@ class VisualGenome:
 
         synset_file = os.path.join(data_dir, synset_json)
         synsets = json.load(open(synset_file))
+        synsets = {
+            k.lower(): v.lower() for k, v in synsets.items()
+        }  # lower case everything
         return synsets
 
     def histogram(self, y="regions", image_ids=None):
@@ -417,7 +712,7 @@ class VisualGenome:
         # Compute histogram bin edges
         max_count = max(counts, default=0)
         bin_edges = np.arange(
-            0, max_count + 5, 5
+            0, max_count + 5, 2
         )  # Bin edges starting from 0 to max_count + 5
         bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2  # Calculate bin centers
 
@@ -623,14 +918,31 @@ class VisualGenome:
         images = json.load(open(data_file))
 
         relationships = []
+        synset1_history = {}
+        rels_without_synsets = []
         for image in images:
             image_id = image["image_id"]
             relationships.append(
                 utils.parse_relationships(
-                    image["relationships"], image_id, self.relationship_synsets
+                    image["relationships"],
+                    image_id,
+                    synset1_history,
+                    self.relationship_synsets,
+                    rels_without_synsets,
                 )
             )
 
+        for rel in rels_without_synsets:
+            pred = rel.predicate
+            for alias_set in self.relationship_alias:
+                if pred in alias_set:
+                    for alias in alias_set:
+                        if synset1_history.get(alias):  # returns a set
+                            rel.synset = list(synset1_history[alias])[0]
+                            break
+                        if self.relationship_synsets.get(alias):
+                            rel.synset = self.relationship_synsets[alias]
+                            break
         return relationships
 
     @deprecation.deprecated(
@@ -699,12 +1011,20 @@ class VisualGenome:
         data_file = os.path.join(data_dir, "objects.json")
         images = json.load(open(data_file))
 
+        synset1_history = {}
+        obs_without_synsets = []
+
         output = []
         for image in images:
             image_url = image["image_url"] if "image_url" in image else None
             output.append(
                 utils.parse_objects(
-                    image["objects"], image["image_id"], image_url, self.object_synsets
+                    image["objects"],
+                    image["image_id"],
+                    image_url,
+                    self.object_synsets,
+                    synset1_history,
+                    obs_without_synsets,
                 )
             )
         return output
@@ -787,7 +1107,13 @@ class VisualGenome:
         plt.show()
 
     def visualize_objects(
-        self, image_id, end=None, desc=True, synsets=True, attributes=True
+        self,
+        image_id,
+        end=None,
+        desc=True,
+        synsets=True,
+        attributes=True,
+        object_ids=None,
     ):
         """
         Visualizes objects for a given image.
@@ -799,11 +1125,14 @@ class VisualGenome:
         desc (bool, optional): If True, the object names and descriptions will be displayed. Defaults to True.
         synsets (bool, optional): If True, the synsets of the object will be displayed along with the name.
                                   If False, only the object names will be shown. Defaults to True.
+        object_ids (list, optional): List of object IDs to visualize. If None, all objects will be visualized.
         """
         image = self.IMAGES[image_id]["image"]
         objects = self.IMAGES[image_id]["objects"]
 
         objects = objects[:end] if end else objects  # visualize up to end
+        if object_ids is not None:
+            objects = [obj for obj in objects if obj.id in object_ids]
 
         fig = plt.gcf()
         fig.set_size_inches(9, 5)
@@ -829,7 +1158,9 @@ class VisualGenome:
                     to_write = ""
                     if synsets is True:
                         # Handle synsets formatting
-                        synsets_str = obj.synset if obj.synset else "No synsets"
+                        synsets_str = (
+                            ", ".join(obj.synsets) if obj.synsets else "No synsets"
+                        )
                         to_write = f"{obj.name}\n{synsets_str}"
                     else:
                         to_write = f"{obj.name}"
@@ -1021,7 +1352,7 @@ class VisualGenome:
         }
 
         for obj in scene_graph.objects:
-            obj.synset = [syn_class[sn] for sn in obj.synset]
+            obj.synsets = [syn_class[sn] for sn in obj.synsets]
         for rel in scene_graph.relationships:
             rel.synset = [syn_class[sn] for sn in rel.synset]
         for attr in scene_graph.attributes:

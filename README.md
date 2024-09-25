@@ -27,6 +27,8 @@ As the official API is not supported, you have to download the following data fi
 - [attributes_synsets.json](https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/attribute_synsets.json.zip)
 - [object_synsets.json](https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/object_synsets.json.zip)
 - [relationship_synsets.json](https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/relationship_synsets.json.zip)
+- [object_alias.txt](https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/object_alias.txt)
+- [relationship_alias.txt](https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/relationship_alias.txt)
 
 Please locate all your downloaded files in a directory called `data/` in the root of the repository. In total, it should take up ~2.5GB of space on disk. You can directly run the `setup.py` to download the files and locate them in the correct directory.
 
@@ -48,6 +50,7 @@ Install the required packages using the following command.
 pip install -r vg-requirements.txt
 ```
 
+As part of our experiments, we also ran [SAM](https://github.com/facebookresearch/segment-anything), [SAM-2](https://github.com/facebookresearch/segment-anything-2), and [FC-CLIP](https://github.com/bytedance/fc-clip) on the Visual Genome dataset to collect the number of segmentations (with SAM) and the number of unique classes (with FC-CLIP) in order to explain the perceived complexity. If you wish to obtain these statistics as well, download the necessary `json` files from this link, and then call the `load_sam_results`, `load_sam2_results`, and `load_fc_clip_results` functions in the `VisualGenome` class.
 
 
 ### Usage

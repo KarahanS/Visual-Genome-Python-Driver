@@ -50,6 +50,9 @@ def visualize_scene_graph(graph, js_file):
         "objects_without_synsets": 0,
         "attributes_without_synsets": 0,
         "relationships_without_synsets": 0,
+        "SAM_segmentations": 0,
+        "SAM2_segmentations": 0,
+        "FC_CLIP_classes": 0,
     }
     for obj in graph["objects"]:
         name = ""
@@ -70,6 +73,9 @@ def visualize_scene_graph(graph, js_file):
     scene_graph["relationships_without_synsets"] = graph[
         "# of relationships with missing synsets"
     ]
+    scene_graph["SAM_segmentations"] = graph["# of SAM segmentations"]
+    scene_graph["SAM2_segmentations"] = graph["# of SAM 2 segmentations"]
+    scene_graph["FC_CLIP_classes"] = graph["# of FC-CLIP classes"]
 
     generate_graph_js(scene_graph, js_file)
     html_file_path = get_html_path()

@@ -140,11 +140,15 @@ def parse_attributes(data, image_id, attribute_synsets):
     return attributes
 
 
-def parse_relationships(data, image_id, relationship_synsets):
+def parse_relationships(
+    data, image_id, synset1_history, relationship_synsets, rels_without_synsets
+):
     """
     Helper to parse relationships.
     """
+
     relationships = []
+
     for info in data:
         if "names" in info["object"]:
             object_name = info["object"]["names"][0]
@@ -155,48 +159,72 @@ def parse_relationships(data, image_id, relationship_synsets):
             subject_name = info["subject"]["names"][0]
         else:
             subject_name = info["subject"]["name"]
-        synset = relationship_synsets.get(info["predicate"].lower(), None)
-        if synset is None and len(info["synsets"]) > 0:
-            synset = info["synsets"][0]
-        relationships.append(
-            Relationship(
-                info["relationship_id"],
-                info["subject"]["object_id"],
-                subject_name,
-                info["predicate"],
-                info["object"]["object_id"],
-                object_name,
-                synset,
-                image_id,
-            )
+
+        info["predicate"] = info["predicate"].lower()
+
+        synset1 = info["synsets"][0] if len(info["synsets"]) > 0 else None
+        synset2 = relationship_synsets.get(info["predicate"], None)
+
+        if synset1 is not None:
+            if info["predicate"] in synset1_history:
+                synset1_history[info["predicate"]].add(synset1)
+            else:
+                synset1_history[info["predicate"]] = {synset1}
+
+        synset = synset1 if synset1 is not None else synset2
+        rel = Relationship(
+            info["relationship_id"],
+            info["subject"]["object_id"],
+            subject_name,
+            info["predicate"],
+            info["object"]["object_id"],
+            object_name,
+            synset,
+            image_id,
         )
+        if synset is None:
+            rels_without_synsets.append(rel)
+        relationships.append(rel)
     return relationships
 
 
-def parse_objects(data, image_id, image_url, object_synsets):
+def parse_objects(
+    data, image_id, image_url, object_synsets, synset1_history, obs_without_synsets
+):
     """
     Helper to parse objects.
     """
     objects = []
     # data = [objects]
     for info in data:
-        # experimental
-        synset = object_synsets.get(info["names"][0].lower(), None)
-        if synset is None and len(info["synsets"]) > 0:
-            synset = info["synsets"][0]
-        objects.append(
-            Object(
-                info["object_id"],
-                info["x"],
-                info["y"],
-                info["w"],
-                info["h"],
-                info["names"],
-                synset,
-                image_id,
-                image_url,
-            )
+        name = info["names"][0].lower() if len(info["names"]) > 0 else None
+
+        synsets1 = info["synsets"]
+        synsets2 = [object_synsets[name]] if name in object_synsets else []
+        synsets = synsets1
+
+        if not synsets1:
+            synsets = synsets2
+        elif name:
+            synset1_history.setdefault(name, set()).add(synsets[0])
+        else:  # No name, but synset
+            name = synsets1[0]
+            synset1_history.setdefault(name, set()).add(synsets[0])
+
+        ob = Object(
+            info["object_id"],
+            info["x"],
+            info["y"],
+            info["w"],
+            info["h"],
+            info["names"],
+            synsets,
+            image_id,
+            image_url,
         )
+        if synsets is None:
+            obs_without_synsets.append(ob)
+        objects.append(ob)
 
     return objects
 

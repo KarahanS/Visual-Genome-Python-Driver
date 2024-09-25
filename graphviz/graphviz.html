@@ -83,6 +83,18 @@
                         <div class='stat_element'>Relationships with missing synsets:</div>
                         <div class='stat_element'><span id='relationships_without_synsets'></span></div>
                     </div>
+                    <div class="col-2">
+                        <div class='stat_element'># of SAM segmentations:</div>
+                        <div class='stat_element'><span id='SAM_segmentations'></span></div>
+                    </div>
+                    <div class="col-2">
+                        <div class='stat_element'># of SAM 2 segmentations:</div>
+                        <div class='stat_element'><span id='SAM2_segmentations'></span></div>
+                    </div>
+                    <div class="col-2">
+                        <div class='stat_element'># of FC CLIP classes:</div>
+                        <div class='stat_element'><span id='FC_CLIP_classes'></span></div>
+                    </div>
                 </div>
                 <!-- Add the image to the image-container div. -->
                 <div class="row">
@@ -119,6 +131,9 @@
         $('#objects_without_synsets').text(graph.objects_without_synsets)
         $('#attributes_without_synsets').text(graph.attributes_without_synsets)
         $('#relationships_without_synsets').text(graph.relationships_without_synsets)
+        $('#SAM_segmentations').text(graph.SAM_segmentations)
+        $('#SAM2_segmentations').text(graph.SAM2_segmentations)
+        $('#FC_CLIP_classes').text(graph.FC_CLIP_classes)
         renderSceneGraph('#image-graph', graph);
     </script>
 

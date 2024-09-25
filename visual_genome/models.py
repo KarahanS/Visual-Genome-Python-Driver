@@ -94,12 +94,12 @@ class Object:
       width      int
       height     int
       names      string array
-      synset    Synset
+      synsets    list(Synset)
       image_id   int
       image_url  string
     """
 
-    def __init__(self, id, x, y, width, height, names, synset, image_id, image_url):
+    def __init__(self, id, x, y, width, height, names, synsets, image_id, image_url):
         self.id = id
         self.x = x
         self.y = y
@@ -113,7 +113,7 @@ class Object:
         self.name = (
             names[0] if names else "None"
         )  # Fallback to "None" if no names are provided
-        self.synset = synset
+        self.synsets = synsets
         self.image_id = image_id
         self.image_url = image_url
 
@@ -130,7 +130,7 @@ class Object:
             self.height,
             self.name,
             self.image_id,
-            self.synset,
+            ", ".join(self.synsets) if len(self.synsets) > 0 else "None",
         )
 
     def __repr__(self):
@@ -167,8 +167,8 @@ class Relationship:
         self.image_id = image_id
 
     def __str__(self):
-        return "id: {0}: {1} {2} {3}".format(
-            self.id, self.subject_name, self.predicate, self.object_name
+        return "id: {0}: {1} {2} {3}, synset: {4}".format(
+            self.id, self.subject_name, self.predicate, self.object_name, self.synset
         )
 
     def __repr__(self):

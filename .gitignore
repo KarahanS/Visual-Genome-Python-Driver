@@ -58,6 +58,6 @@ python-env-tools/**
 csv
 image_regions.csv
 env
-data/*.json
+data/*
 visual_genome/api.py
 scene_graph.js
