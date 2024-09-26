@@ -149,7 +149,17 @@ def parse_relationships(
 
     relationships = []
 
+    unq_relationships = set()  # a set of tuples (object_id, subject_id, predicate)
     for info in data:
+        tpl = (
+            info["object"]["object_id"],
+            info["subject"]["object_id"],
+            info["predicate"],
+        )
+        if tpl in unq_relationships:
+            continue
+        unq_relationships.add(tpl)
+
         if "names" in info["object"]:
             object_name = info["object"]["names"][0]
         else:

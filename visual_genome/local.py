@@ -14,6 +14,7 @@ import matplotlib.ticker as ticker
 import random
 import pandas as pd
 import cv2
+import math
 
 
 class VisualGenome:
@@ -41,6 +42,9 @@ class VisualGenome:
         attributes = self.get_all_attributes(data_dir)
         relationships = self.get_all_relationships(data_dir)
         # qas = self.get_all_qas(data_dir)
+
+        # it maps the average inverse frequency of entity to the image ids
+        self.inv_freq_to_image = {"objects": {}, "relationships": {}, "attributes": {}}
 
         self.IMAGES = {}
         self.REGIONS = {}
@@ -88,6 +92,11 @@ class VisualGenome:
                 ):  # ignore relationships on merged objects
                     self.OBJECTS[rel.subject_id]["relationships"].append(rel)
                     self.OBJECTS[rel.object_id]["relationships"].append(rel)
+
+        # mapping from entity to scaled inverse frequency (weight)
+        self.rel_inv_freq = self.get_inv_frequency("relationships")
+        self.obj_inv_freq = self.get_inv_frequency("objects")
+        self.attr_inv_freq = self.get_inv_frequency("attributes")
 
         print("Data loaded.")
 
@@ -229,6 +238,32 @@ class VisualGenome:
                     id_set.add(rel.id)
         return relationships
 
+    def get_average_inv_freq(self, entities, freq_dict):
+        inv_freq_sum = 0
+        entity_with_synsets = 0
+
+        for entity in entities:
+            if entity.synset:
+                entity_with_synsets += 1
+                inv_freq_sum += freq_dict[entity.synset]
+
+        return inv_freq_sum / entity_with_synsets if entity_with_synsets else 0
+
+    def get_average_object_freq(self, objs):
+        obj_with_synsets = 0
+        obj_inv_freq_sum = 0
+
+        for obj in objs:
+            obj_synset_freq_sum = 0
+            if obj.synsets:
+                obj_with_synsets += 1
+            for synset in obj.synsets:
+                obj_synset_freq_sum += self.obj_inv_freq[synset]
+            obj_inv_freq_sum += (
+                obj_synset_freq_sum / len(obj.synsets) if obj.synsets else 0
+            )
+        return obj_inv_freq_sum / obj_with_synsets if obj_with_synsets else 0
+
     def get_statistics_for_image(self, im):
         if isinstance(im, Image):
             im = im.id
@@ -260,20 +295,28 @@ class VisualGenome:
         # create a graph of objects
         graph = {}
         objects_without_synset = 0
+        obj_freq_sum = 0
+        obj_with_synsets = 0
+
         for obj in objs:
             graph[obj] = []
             if not obj.synsets:
                 objects_without_synset += 1
+            obj_synset_freq_sum = 0
             for synset in obj.synsets:
+                obj_with_synsets += 1
+                obj_synset_freq_sum += self.obj_freq[synset]
                 for other in objs:
                     if other.id != obj.id:
                         for syn in other.synsets:
                             if syn == synset:
                                 graph[obj].append(other)
+            obj_freq_sum += obj_synset_freq_sum / len(obj.synsets) if obj.synsets else 0
 
         # find number of connected components in this graph
         visited = set()
         components = 0
+
         for obj in objs:
             if obj not in visited:
                 components += 1
@@ -296,6 +339,10 @@ class VisualGenome:
 
         vn = f"{vertices / nodes:.2f}" if nodes != 0 else "N/A"
 
+        average_attr_inv_freq = self.get_average_inv_freq(attrs, self.attr_inv_freq)
+        average_rel_inv_freq = self.get_average_inv_freq(rels, self.rel_inv_freq)
+        average_obj_inv_freq = self.get_average_object_freq(objs)
+
         stat = {
             "# of objects": num_objects,
             "# of attributes": num_attributes,
@@ -307,7 +354,14 @@ class VisualGenome:
             "# of objects with missing synsets": objects_without_synset,
             "# of attributes with missing synsets": missing_attribute_synsets,
             "# of relationships with missing synsets": missing_relationship_synsets,
+            "Average attribute inverse frequency": f"{average_attr_inv_freq:.6f}",
+            "Average object inverse frequency": f"{average_obj_inv_freq:.6f}",
+            "Average relationship inverse frequency": f"{average_rel_inv_freq:.6f}",
         }
+        stat["# of SAM segmentations"] = "Not available"
+        stat["# of SAM 2 segmentations"] = "Not available"
+        stat["# of FC-CLIP classes"] = "Not available"
+
         if self.SAM:
             stat["SAM - Number of segmentations"] = self.SAM[im]
         if self.SAM2:
@@ -316,6 +370,112 @@ class VisualGenome:
             stat["FC-CLIP - Number of unique classes"] = self.FC_CLIP[im]
 
         return stat
+
+    def fill_inv_freq_to_image(self, entity_type, rnd=None):
+        freq_map = {}
+        fill = False
+        if self.inv_freq_to_image[entity_type] == {}:
+            fill = True
+        for key in self.IMAGES:
+            if entity_type == "objects":
+                entities = self.get_image_objects(key)
+            elif entity_type == "attributes":
+                entities = self.get_image_attributes(key)
+            else:
+                entities = self.get_image_relationships(key)
+
+            if entity_type in ["attributes", "relationships"]:
+                average_freq = self.get_average_inv_freq(
+                    entities,
+                    (
+                        self.attr_inv_freq
+                        if entity_type == "attributes"
+                        else self.rel_inv_freq
+                    ),
+                )
+            else:
+                average_freq = self.get_average_object_freq(entities)
+
+            if not rnd:
+                average_freq = (
+                    round(average_freq, 2)
+                    if entity_type in ["attributes", "relationships"]
+                    else round(average_freq, 4)
+                )
+            else:
+                average_freq = round(average_freq, rnd)
+            freq_map[average_freq] = freq_map.get(average_freq, 0) + 1
+            if fill:
+                self.inv_freq_to_image[entity_type][average_freq] = (
+                    self.inv_freq_to_image[entity_type].get(average_freq, []) + [key]
+                )
+
+        return freq_map
+
+    def average_inv_frequency_plot(self, entity_type, up=200, image_ids=None, rnd=None):
+        if entity_type not in ["objects", "attributes", "relationships"]:
+            raise ValueError(
+                f"Invalid entity type: {entity_type}. Must be one of ['objects', 'attributes', 'relationships']."
+            )
+        if self.inv_freq_to_image[entity_type] == {}:
+            freq_map = self.fill_inv_freq_to_image(entity_type, rnd=rnd)
+        else:
+            freq_map = {}
+            for k, v in self.inv_freq_to_image[entity_type].items():
+                freq_map[k] = len(v)
+
+        if image_ids:  # include only the images in image_ids
+            sub_freq_map = {}
+            for k, v in freq_map.items():
+                for im in v:
+                    if im in image_ids:
+                        if k not in sub_freq_map:
+                            sub_freq_map[k] = []
+                        sub_freq_map[k].append(im)
+            freq_map = sub_freq_map
+
+        # Sort the frequencies in ascending order
+        sorted_freqs = sorted(freq_map.items(), key=lambda x: x[0])
+        freqs, counts = zip(*sorted_freqs)
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(
+            freqs[1:min(up, len(freqs))], counts[1:min(up, len(freqs))], marker="o", linestyle="-", color="b"
+        )  # exclude first element: 0 (no entity)
+
+        # Add labels and title
+        plt.xlabel("Average scaled inverse frequency")
+        plt.ylabel("Number of images")
+        plt.title("Average scaled inverse frequency plot of " + entity_type)
+
+        # Show the plot
+        plt.grid(True)
+        plt.show()
+
+    def sample_images_with_inv_frequency(
+        self, entity_type, lo, hi, cnt=1, image_ids=None
+    ):
+        if self.inv_freq_to_image[entity_type] == {}:
+            self.fill_inv_freq_to_image(entity_type)
+
+        # get images with low <= freq <= hi
+        images = []
+        for freq in self.inv_freq_to_image[entity_type]:
+            if lo <= freq <= hi:
+                if image_ids is None:
+                    images.extend(self.inv_freq_to_image[entity_type][freq])
+                else:
+                    for image in self.inv_freq_to_image[entity_type][freq]:
+                        if image in image_ids:
+                            images.append(image)
+
+        if len(images) == 0:
+            return []
+        else:
+            if cnt <= len(images):
+                return random.sample(images, cnt)
+            else:
+                return images
 
     def get_image_regions(self, id):
         if isinstance(id, Image):
@@ -363,28 +523,7 @@ class VisualGenome:
             )
 
         stats = self.get_statistics_for_image(image_id)
-        data["# of unique objects"] = stats["# of unique objects"]
-        data["# of unique attributes"] = stats["# of unique attributes"]
-        data["# of unique relationships"] = stats["# of unique relationships"]
-        data["# of objects with missing synsets"] = stats[
-            "# of objects with missing synsets"
-        ]
-        data["# of attributes with missing synsets"] = stats[
-            "# of attributes with missing synsets"
-        ]
-        data["# of relationships with missing synsets"] = stats[
-            "# of relationships with missing synsets"
-        ]
-        data["# of SAM segmentations"] = "Not available"
-        data["# of SAM 2 segmentations"] = "Not available"
-        data["# of FC-CLIP classes"] = "Not available"
-
-        if self.SAM:
-            data["# of SAM segmentations"] = self.SAM[image_id]
-        if self.SAM2:
-            data["# of SAM 2 segmentations"] = self.SAM2[image_id]
-        if self.FC_CLIP:
-            data["# of FC-CLIP classes"] = self.FC_CLIP[image_id]
+        data = data | stats
 
         return data
 
@@ -945,6 +1084,53 @@ class VisualGenome:
                             break
         return relationships
 
+    def get_inv_frequency(self, entity="relationships"):
+        if entity not in ["objects", "attributes", "relationships"]:
+            raise ValueError(
+                f"Invalid entity type: {entity}. Must be one of ['objects', 'attributes', 'relationships']."
+            )
+
+        # basically, we want to count the number of times each synset appears in the dataset
+        # TODO
+        # What to do if there's no synset? Simply ignore it, because adding the name as a synset
+        # could incorrectly portray the image as complex due to the presence of an extremely rare synset.
+        synset_counts = {}
+        for key in self.IMAGES:
+            if entity == "objects":
+                l = self.get_image_objects(key)
+            elif entity == "attributes":
+                l = self.get_image_attributes(key)
+            else:
+                l = self.get_image_relationships(key)
+            for el in l:
+                synsets = el.synsets if entity == "objects" else el.synset
+                if synsets:
+                    if type(synsets) != list:
+                        synsets = [synsets]
+                    for syn in synsets:
+                        if syn in synset_counts:
+                            synset_counts[syn] += 1
+                        else:
+                            synset_counts[syn] = 1
+            # get inverse frequency
+        sum_ = sum(synset_counts.values())
+
+        for k in synset_counts:
+            synset_counts[k] /= sum_
+
+        # get inverse:
+        for k in synset_counts:
+            synset_counts[k] = 1 / synset_counts[k]
+
+        # then normalize and multiply with 100 to map it onto a scale of 0-100
+        max_ = max(synset_counts.values())
+        for k in synset_counts:
+            synset_counts[k] = (synset_counts[k] / max_) * 100
+
+        return dict(
+            sorted(synset_counts.items(), key=lambda item: item[1], reverse=True)
+        )
+
     @deprecation.deprecated(
         details="""This function iterates through all images to find the requested one.
         Instead, instantiate a `VisualGenome` object. Then you can access the image with `get_image_regions(id)`."""
@@ -1086,14 +1272,24 @@ class VisualGenome:
         plt.tick_params(labelbottom="off", labelleft="off")
         plt.show()
 
-    def visualize_images_side_by_side(self, images, n):
+    def visualize_images_side_by_side(self, images):
+        n = len(images)
+        # check if n is square
+        if not math.sqrt(n).is_integer():
+            raise ValueError("Number of images must be a perfect square.")
+        
+        n = int(math.sqrt(n))
         # visualize n images side by side
         fig, axes = plt.subplots(
             n, n, figsize=(n**2, n**2)
         )  # Create a 3x3 grid of subplots
-        axes = axes.flatten()  # Flatten axes array for easy iteration
+        if n > 1:
+            axes = axes.flatten()  # Flatten axes array for easy iteration
 
         for i, ax in enumerate(axes):
+            if not isinstance(images[i], Image):
+                images[i] = self.get_image(images[i])
+
             response = requests.get(images[i].url)
             img = PIL_Image.open(BytesIO(response.content))
             ax.imshow(img)
