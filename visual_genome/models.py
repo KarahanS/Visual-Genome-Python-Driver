@@ -97,6 +97,8 @@ class Object:
       synsets    list(Synset)
       image_id   int
       image_url  string
+
+    (x, y) refers to the upper left corner of the bounding box
     """
 
     def __init__(self, id, x, y, width, height, names, synsets, image_id, image_url):

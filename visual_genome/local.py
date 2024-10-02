@@ -264,7 +264,7 @@ class VisualGenome:
             )
         return obj_inv_freq_sum / obj_with_synsets if obj_with_synsets else 0
 
-    def get_statistics_for_image(self, im):
+    def get_image_statistics(self, im):
         if isinstance(im, Image):
             im = im.id
 
@@ -295,23 +295,17 @@ class VisualGenome:
         # create a graph of objects
         graph = {}
         objects_without_synset = 0
-        obj_freq_sum = 0
-        obj_with_synsets = 0
 
         for obj in objs:
             graph[obj] = []
             if not obj.synsets:
                 objects_without_synset += 1
-            obj_synset_freq_sum = 0
             for synset in obj.synsets:
-                obj_with_synsets += 1
-                obj_synset_freq_sum += self.obj_freq[synset]
                 for other in objs:
                     if other.id != obj.id:
                         for syn in other.synsets:
                             if syn == synset:
                                 graph[obj].append(other)
-            obj_freq_sum += obj_synset_freq_sum / len(obj.synsets) if obj.synsets else 0
 
         # find number of connected components in this graph
         visited = set()
@@ -440,7 +434,11 @@ class VisualGenome:
 
         plt.figure(figsize=(10, 6))
         plt.plot(
-            freqs[1:min(up, len(freqs))], counts[1:min(up, len(freqs))], marker="o", linestyle="-", color="b"
+            freqs[1 : min(up, len(freqs))],
+            counts[1 : min(up, len(freqs))],
+            marker="o",
+            linestyle="-",
+            color="b",
         )  # exclude first element: 0 (no entity)
 
         # Add labels and title
@@ -522,7 +520,7 @@ class VisualGenome:
                 }
             )
 
-        stats = self.get_statistics_for_image(image_id)
+        stats = self.get_image_statistics(image_id)
         data = data | stats
 
         return data
@@ -1124,8 +1122,10 @@ class VisualGenome:
 
         # then normalize and multiply with 100 to map it onto a scale of 0-100
         max_ = max(synset_counts.values())
+        min_ = min(synset_counts.values())
+
         for k in synset_counts:
-            synset_counts[k] = (synset_counts[k] / max_) * 100
+            synset_counts[k] = (synset_counts[k] - min_) / (max_ - min_) * 100
 
         return dict(
             sorted(synset_counts.items(), key=lambda item: item[1], reverse=True)
@@ -1277,7 +1277,7 @@ class VisualGenome:
         # check if n is square
         if not math.sqrt(n).is_integer():
             raise ValueError("Number of images must be a perfect square.")
-        
+
         n = int(math.sqrt(n))
         # visualize n images side by side
         fig, axes = plt.subplots(
@@ -1323,6 +1323,8 @@ class VisualGenome:
                                   If False, only the object names will be shown. Defaults to True.
         object_ids (list, optional): List of object IDs to visualize. If None, all objects will be visualized.
         """
+        if not isinstance(object_ids, list):
+             object_ids = [object_ids]
         image = self.IMAGES[image_id]["image"]
         objects = self.IMAGES[image_id]["objects"]
 
