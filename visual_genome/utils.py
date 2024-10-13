@@ -1,5 +1,5 @@
 import requests
-from os.path import dirname, realpath, join
+import os
 from visual_genome.models import (
     Image,
     Object,
@@ -16,8 +16,22 @@ from visual_genome.models import (
 def get_data_dir():
     """
     Get the local directory where the Visual Genome data is locally stored.
+    This works whether the 'data' folder is in the same directory as the script
+    or in the parent directory.
     """
-    data_dir = join(dirname(realpath("__file__")), "data")
+    # Get the directory where the current script/notebook is located
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+
+    # Check if 'data' is in the same folder as the script
+    data_dir = os.path.join(script_dir, "data")
+
+    if not os.path.exists(data_dir):
+        # If not found, assume 'data' is in the parent directory
+        data_dir = os.path.abspath(os.path.join(script_dir, "..", "data"))
+
+    print(f"Script directory: {script_dir}")
+    print(f"Data directory: {data_dir}")
+
     return data_dir
 
 

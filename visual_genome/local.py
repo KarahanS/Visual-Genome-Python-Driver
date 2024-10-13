@@ -18,7 +18,9 @@ import math
 
 
 class VisualGenome:
-    def __init__(self, data_dir="data/"):
+    def __init__(self, data_dir=None):
+        if data_dir is None:
+            data_dir = utils.get_data_dir()
         self.data_dir = data_dir
 
         print("Loading data...")
@@ -100,7 +102,7 @@ class VisualGenome:
 
         print("Data loaded.")
 
-    def load_sam_results(self, sam_file="sam.json", version=1, data_dir="data/"):
+    def load_sam_results(self, sam_file="sam.json", version=1, data_dir=None):
         """
         Loads SAM results from a .json file.
 
@@ -117,6 +119,8 @@ class VisualGenome:
         """
         if version not in [1, 2]:
             raise ValueError("Invalid version. Must be 1 or 2.")
+        if data_dir is None:
+            data_dir = self.data_dir
 
         if version == 2:
             sam_file = "sam2.json"
@@ -487,7 +491,7 @@ class VisualGenome:
             List(Image) objects
         """
         if data_dir is None:
-            data_dir = utils.get_data_dir()
+            data_dir = self.data_dir
         data_file = os.path.join(data_dir, "image_data.json")
         data = json.load(open(data_file))
         return [utils.parse_image_data(image) for image in data]
@@ -537,7 +541,7 @@ class VisualGenome:
         """
         masks = []
         if data_dir is None:
-            data_dir = utils.get_data_dir()
+            data_dir = self.data_dir
         data_path = os.path.join(data_dir, str(image_id))
         metadata_path = os.path.join(data_path, anns_file)
 
@@ -777,7 +781,7 @@ class VisualGenome:
 
     def get_alias(self, alias_file, data_dir=None):
         if data_dir is None:
-            data_dir = utils.get_data_dir()
+            data_dir = self.data_dir
 
         alias_file = os.path.join(data_dir, alias_file)
         aliases = []
@@ -802,7 +806,7 @@ class VisualGenome:
         Output: Dict[str, Synset]
         """
         if data_dir is None:
-            data_dir = utils.get_data_dir()
+            data_dir = self.data_dir
 
         synset_file = os.path.join(data_dir, synset_json)
         synsets = json.load(open(synset_file))
@@ -963,7 +967,7 @@ class VisualGenome:
         Get a single image with ID
         """
         if data_dir is None:
-            data_dir = utils.get_data_dir()
+            data_dir = self.data_dir
 
         data_file = os.path.join(data_dir, "image_data.json")
         data = json.load(open(data_file))
@@ -1024,7 +1028,7 @@ class VisualGenome:
         Output: List[List[Region]] --> First list has 108,077 elements (number of images).
         """
         if data_dir is None:
-            data_dir = utils.get_data_dir()
+            data_dir = self.data_dir
 
         data_file = os.path.join(data_dir, "region_descriptions.json")
         image_data = self.get_all_image_data(data_dir)
@@ -1049,7 +1053,7 @@ class VisualGenome:
         Output: List[List[Relationship]] --> First list has 108,077 elements (number of images).
         """
         if data_dir is None:
-            data_dir = utils.get_data_dir()
+            data_dir = self.data_dir
 
         data_file = os.path.join(data_dir, "relationships.json")
         images = json.load(open(data_file))
@@ -1147,7 +1151,7 @@ class VisualGenome:
             List[Region] or None: A list of region descriptions or None if not found.
         """
         if data_dir is None:
-            data_dir = utils.get_data_dir()
+            data_dir = self.data_dir
 
         data_file = os.path.join(data_dir, "region_descriptions.json")
 
@@ -1171,7 +1175,7 @@ class VisualGenome:
         Output: List[List[Attribute]] --> First list has 108,077 elements (number of images).
         """
         if data_dir is None:
-            data_dir = utils.get_data_dir()
+            data_dir = self.data_dir
 
         data_file = os.path.join(data_dir, "attributes.json")
         images = json.load(open(data_file))
@@ -1192,7 +1196,7 @@ class VisualGenome:
         images:  {image_id, objects, image_url}
         """
         if data_dir is None:
-            data_dir = utils.get_data_dir()
+            data_dir = self.data_dir
 
         data_file = os.path.join(data_dir, "objects.json")
         images = json.load(open(data_file))
@@ -1220,7 +1224,7 @@ class VisualGenome:
         Get all question answers.
         """
         if data_dir is None:
-            data_dir = utils.get_data_dir()
+            data_dir = self.data_dir
         data_file = os.path.join(data_dir, "question_answers.json")
         image_data = self.get_all_image_data(data_dir)
         image_map = {}
@@ -1324,7 +1328,7 @@ class VisualGenome:
         object_ids (list, optional): List of object IDs to visualize. If None, all objects will be visualized.
         """
         if not isinstance(object_ids, list):
-             object_ids = [object_ids]
+            object_ids = [object_ids]
         image = self.IMAGES[image_id]["image"]
         objects = self.IMAGES[image_id]["objects"]
 
