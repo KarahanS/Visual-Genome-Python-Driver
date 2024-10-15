@@ -55,7 +55,8 @@ class VisualGenome:
         self.RELATIONSHIPS = {}
         self.SAM = None
         self.SAM2 = None
-        self.FC_CLIP = None
+        self.FC_CLIP_ALL = None  # stores all details
+        self.FC_CLIP = None  # stores only the number of unique classes
 
         for image in images:
             self.IMAGES[image.id] = {"image": image, "regions": [], "objects": []}
@@ -101,6 +102,35 @@ class VisualGenome:
         self.attr_inv_freq = self.get_inv_frequency("attributes")
 
         print("Data loaded.")
+
+    def load_fc_clip_results(self, fc_clip_file="fc_clip.json", data_dir=None):
+        """
+        Loads FC-CLIP results from a .json file.
+
+        Args:
+            data_dir (str, optional): Directory containing the FC-CLIP file. Defaults to "data/".
+            fc_clip_file (str, optional): Filename of the FC-CLIP file. Defaults to "fc_clip.json".
+
+        Returns:
+            dict: Loaded FC-CLIP results.
+        """
+
+        if data_dir is None:
+            data_dir = self.data_dir
+
+        fc_clip_file_path = os.path.join(data_dir, fc_clip_file)
+        with open(fc_clip_file_path, "r") as file:
+            fc_clip_results = json.load(file)
+
+        self.FC_CLIP_ALL = {int(key): value for key, value in fc_clip_results.items()}
+        self.FC_CLIP = {}
+        for key in self.FC_CLIP_ALL:
+            # Use a set comprehension to collect unique category_ids and get its length
+            self.FC_CLIP[key] = len(
+                {category["category_id"] for category in self.FC_CLIP_ALL[key]}
+            )
+
+        return fc_clip_results
 
     def load_sam_results(self, sam_file="sam.json", version=1, data_dir=None):
         """
@@ -332,10 +362,10 @@ class VisualGenome:
             rels, "relationship"
         )
 
-        nodes = num_objects + num_attributes + num_relationships
-        vertices = num_attributes + num_relationships * 2
+        vertices = num_objects + num_attributes + num_relationships
+        edges = num_attributes + num_relationships * 2
 
-        vn = f"{vertices / nodes:.2f}" if nodes != 0 else "N/A"
+        ev = f"{edges / vertices:.2f}" if vertices != 0 else "N/A"
 
         average_attr_inv_freq = self.get_average_inv_freq(attrs, self.attr_inv_freq)
         average_rel_inv_freq = self.get_average_inv_freq(rels, self.rel_inv_freq)
@@ -345,7 +375,7 @@ class VisualGenome:
             "# of objects": num_objects,
             "# of attributes": num_attributes,
             "# of relationships": num_relationships,
-            "vertices to node ratio": vn,
+            "edges to vertices ratio": ev,
             "# of unique objects": components,
             "# of unique attributes": len(attribute_synsets),
             "# of unique relationships": len(relationship_synsets),
@@ -361,13 +391,52 @@ class VisualGenome:
         stat["# of FC-CLIP classes"] = "Not available"
 
         if self.SAM:
-            stat["SAM - Number of segmentations"] = self.SAM[im]
+            stat["# of SAM segmentations"] = self.SAM[im]
         if self.SAM2:
-            stat["SAM2 - Number of segmentations"] = self.SAM2[im]
+            stat["# of SAM 2 segmentations"] = self.SAM2[im]
         if self.FC_CLIP:
-            stat["FC-CLIP - Number of unique classes"] = self.FC_CLIP[im]
+            stat["# of FC-CLIP classes"] = self.FC_CLIP[im]
 
         return stat
+
+    def get_graph(self, im):
+        class Node:
+            def __init__(self, obj):
+                self.obj = obj
+                self.edges = []
+
+            def __str__(self):
+                return str(self.obj)
+
+            def get_type(self):
+                return self.obj.__class__.__name__
+
+        objs = self.get_image_objects(im)
+        attrs = self.get_image_attributes(im)
+        rels = self.get_image_relationships(im)
+
+        id_to_node = {}
+        nodes = []
+        for obj in objs + attrs + rels:
+            n = Node(obj)
+            id_to_node[obj.id] = n
+            nodes.append(n)
+
+        for rel in rels:
+            subject_node = id_to_node[rel.subject_id]
+            object_node = id_to_node[rel.object_id]
+            rel_node = id_to_node[rel.id]
+
+            subject_node.edges.append(rel_node)
+            rel_node.edges.append(object_node)
+
+        for attr in attrs:
+            obj_node = id_to_node[attr.object_id]
+            attr_node = id_to_node[attr.id]
+
+            obj_node.edges.append(attr_node)
+
+        return nodes
 
     def fill_inv_freq_to_image(self, entity_type, rnd=None):
         freq_map = {}
