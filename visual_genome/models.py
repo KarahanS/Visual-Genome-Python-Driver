@@ -93,7 +93,7 @@ class Object:
       y          int
       width      int
       height     int
-      names      string array
+      name       string
       synsets    list(Synset)
       image_id   int
       image_url  string
