@@ -231,89 +231,43 @@ class VisualGenome:
             im = im.id
         return self.IMAGES[im]["objects"]
 
-    def find_connected_components(self, objects, relationships, attributes):
-        """
-        Finds connected components in the scene graph based on relationships.
+    # treats the graph as undirected
+    def find_connected_components(self, im):
+        # observation: no need to create separate nodes for the relationships, just create an edge between the objects
+        # no need to consider attributes, they are always mapped to an object and that's all.
 
-        Parameters:
-        - objects (list of dict): List of object entities with 'id' and 'name'.
-        - relationships (list of dict): List of relationship entities with 'subject_id', 'object_id', and 'predicate'.
-        - attributes (list of dict): List of attribute entities with 'object_id' and 'attribute_name'.
+        if isinstance(im, Image):
+            im = im.id
+        objects = self.get_image_objects(im)
+        relationships = self.get_image_relationships(im)
 
-        Returns:
-        - sentences (list of str): Generated sentences for each connected component.
-        """
-        # Build adjacency list for relationships
-        adjacency_list = defaultdict(list)
-        for rel in relationships:
-            subj_id = rel["subject_id"]
-            obj_id = rel["object_id"]
-            predicate = rel["predicate"]
-            adjacency_list[subj_id].append((obj_id, predicate))
-            adjacency_list[obj_id].append((subj_id, predicate))
-
-        # Helper function to perform DFS and find connected components
-        def dfs(node, visited, component):
-            visited.add(node)
-            component.append(node)
-            for neighbor, _ in adjacency_list[node]:
-                if neighbor not in visited:
-                    dfs(neighbor, visited, component)
-
-        # Find connected components using DFS
-        visited = set()
-        connected_components = []
+        graph = {}
         for obj in objects:
-            if obj["id"] not in visited:
-                component = []
-                dfs(obj["id"], visited, component)
-                connected_components.append(component)
+            graph[obj.id] = []
 
-        # Build a map for easy lookup of object names and attributes
-        object_map = {obj["id"]: obj["name"] for obj in objects}
-        attribute_map = defaultdict(list)
-        for attr in attributes:
-            attribute_map[attr["object_id"]].append(attr["attribute_name"])
+        for rel in relationships:
+            graph[rel.subject].append(rel.object)
+            graph[rel.object].append(rel.subject)
 
-        # Generate sentences for each connected component
-        sentences = []
+        visited = set()
+        components = 0
+        for obj in objects:
+            if obj.id not in visited:
+                components += 1
+                stack = [obj.id]
+                while stack:
+                    node = stack.pop()
+                    if node not in visited:
+                        visited.add(node)
+                        stack.extend(graph[node])
 
-        for component in connected_components:
-            # For each component, we'll start with the subject
-            component_objects = []
-            for obj_id in component:
-                obj_name = object_map[obj_id]
-                obj_attributes = attribute_map[obj_id]
+        return components
 
-                # Add attributes to the object name (e.g., "a tall, handsome man")
-                if obj_attributes:
-                    object_description = (
-                        "a " + ", ".join(obj_attributes) + " " + obj_name
-                    )
-                else:
-                    object_description = "a " + obj_name
-
-                component_objects.append((obj_id, object_description))
-
-            # Build the sentence
-            if len(component_objects) == 1:
-                # No relationships, just describe the object
-                sentences.append(component_objects[0][1])
-            else:
-                # Start with the first object (assume it's the subject)
-                subject_id, subject_description = component_objects[0]
-                sentence = subject_description
-
-                # Find the related objects and relationships
-                for obj_id, predicate in adjacency_list[subject_id]:
-                    for comp_obj_id, comp_obj_description in component_objects[1:]:
-                        if comp_obj_id == obj_id:
-                            sentence += f" {predicate} {comp_obj_description}"
-
-                sentences.append(sentence)
-
-        return sentences
-
+    def get_sam_segmentations(self, im):
+        if isinstance(im, Image):
+            im = im.id
+        return self.SAM[im]
+    
     def get_image_attributes(self, im):
         # Check if id is an instance of Image
         if isinstance(im, Image):
@@ -1034,6 +988,8 @@ class VisualGenome:
         plt.xticks([])
         plt.show()
 
+        return np.mean(counts)
+
     def object_histogram(self, y):
         """
         Plots a histogram of the number of attributes per object.
@@ -1488,7 +1444,7 @@ class VisualGenome:
         """
         if not object_ids:
             object_ids = [o.id for o in self.get_image_objects(image_id)]
-             
+
         if not isinstance(object_ids, list):
             object_ids = [object_ids]
         image = self.IMAGES[image_id]["image"]
