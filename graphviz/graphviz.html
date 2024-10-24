@@ -119,8 +119,27 @@
     <!-- Read the graph, display the image and generate the graph visualization. -->
     <script>
         var imageContainer = $('#image-container');
-        var image = $("<img style='width:400px; height:400px;' src='" + graph.url + "'></img>");
-        imageContainer.append(image);
+
+        var imageContainer = $('#image-container');
+        var img = new Image();
+        img.onload = function() {
+            // Create image element with original aspect ratio but max dimensions of 400x400
+            var aspectRatio = this.width / this.height;
+            var maxWidth = 400;
+            var maxHeight = 400;
+            var width = maxWidth;
+            var height = width / aspectRatio;
+            
+            // If height is too big, scale based on height instead
+            if (height > maxHeight) {
+                height = maxHeight;
+                width = height * aspectRatio;
+            }
+            
+            var image = $("<img style='width:" + width + "px; height:" + height + "px;' src='" + graph.url + "'></img>");
+            imageContainer.append(image);
+        };
+        img.src = graph.url;
         $('#num_objects').text(graph.objects.length)
         $('#num_attributes').text(graph.attributes.length)
         $('#num_relationships').text(graph.relationships.length)
