@@ -13,7 +13,7 @@ from visual_genome.models import (
 )
 
 
-def get_data_dir():
+def get_data_dir(subfolder=None):
     """
     Get the local directory where the Visual Genome data is locally stored.
     This works whether the 'data' folder is in the same directory as the script
@@ -28,6 +28,9 @@ def get_data_dir():
     if not os.path.exists(data_dir):
         # If not found, assume 'data' is in the parent directory
         data_dir = os.path.abspath(os.path.join(script_dir, "..", "data"))
+
+    if subfolder is not None:
+        data_dir = os.path.join(data_dir, subfolder)
 
     print(f"Script directory: {script_dir}")
     print(f"Data directory: {data_dir}")

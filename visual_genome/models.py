@@ -24,10 +24,11 @@ class Image:
         self.flickr_id = flickr_id
 
     def __str__(self):
-        return "id: %d, coco_id: %d, flickr_id: %d, width: %d, url: %s" % (
+        return "id: %d, coco_id: %d, flickr_id: %d, height: %s, width: %d, url: %s" % (
             self.id,
             -1 if self.coco_id is None else self.coco_id,
             -1 if self.flickr_id is None else self.flickr_id,
+            self.height,
             self.width,
             self.url,
         )
@@ -169,7 +170,7 @@ class Relationship:
         self.image_id = image_id
 
     def __str__(self):
-        return "id: {0}: {1} {2} {3}, synset: {4}".format(
+        return "id: {0}: subject: {1} predicate: {2} object: {3}, synset: {4}".format(
             self.id, self.subject_name, self.predicate, self.object_name, self.synset
         )
 

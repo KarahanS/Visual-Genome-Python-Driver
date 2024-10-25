@@ -7,7 +7,15 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from PIL import Image as PIL_Image
 from io import BytesIO
-from visual_genome.models import Image, Object, Attribute, Relationship, Graph, Synset
+from visual_genome.models import (
+    Image,
+    Object,
+    Attribute,
+    Relationship,
+    Graph,
+    Synset,
+    Region,
+)
 import deprecation
 import numpy as np
 import matplotlib.ticker as ticker
@@ -25,7 +33,6 @@ class VisualGenome:
         self.data_dir = data_dir
 
         print("Loading data...")
-
         self.attribute_synsets = self.get_synset_dictionary(
             "attribute_synsets.json", data_dir
         )
@@ -41,13 +48,16 @@ class VisualGenome:
 
         images = self.get_all_image_data(data_dir)
         objects = self.get_all_objects(data_dir)
-        region_descriptions = self.get_all_region_descriptions(data_dir)
+        region_descriptions = self.get_all_region_descriptions(images, data_dir)
         attributes = self.get_all_attributes(data_dir)
         relationships = self.get_all_relationships(data_dir)
-        # qas = self.get_all_qas(data_dir)
 
         # it maps the average inverse frequency of entity to the image ids
-        self.inv_freq_to_image = {"objects": {}, "relationships": {}, "attributes": {}}
+        self.inv_freq_to_image = {
+            "objects": {},
+            "relationships": {},
+            "attributes": {},
+        }
 
         self.IMAGES = {}
         self.REGIONS = {}
@@ -59,12 +69,14 @@ class VisualGenome:
         self.FC_CLIP_ALL = None  # stores all details
         self.FC_CLIP = None  # stores only the number of unique classes
 
-        for image in images:
-            self.IMAGES[image.id] = {"image": image, "regions": [], "objects": []}
+        for id in images:
+            self.IMAGES[id] = {"image": images[id], "regions": [], "objects": []}
 
-        for image_regions, image_objects, image_attributes, image_relationships in zip(
-            region_descriptions, objects, attributes, relationships
-        ):
+        for id in images:
+            image_regions = region_descriptions.get(id, [])
+            image_objects = objects.get(id, [])
+            image_attributes = attributes.get(id, [])
+            image_relationships = relationships.get(id, [])
             # Process regions
             first_region = image_regions[0]
             image_id = first_region.image.id
@@ -93,7 +105,7 @@ class VisualGenome:
                 self.RELATIONSHIPS[rel.id] = rel
                 if (
                     rel.subject_id in self.OBJECTS and rel.object_id in self.OBJECTS
-                ):  # ignore relationships on merged objects
+                ):  # ignore relationships on merged objectss
                     self.OBJECTS[rel.subject_id]["relationships"].append(rel)
                     self.OBJECTS[rel.object_id]["relationships"].append(rel)
 
@@ -101,7 +113,6 @@ class VisualGenome:
         self.rel_inv_freq = self.get_inv_frequency("relationships")
         self.obj_inv_freq = self.get_inv_frequency("objects")
         self.attr_inv_freq = self.get_inv_frequency("attributes")
-
         print("Data loaded.")
 
     def load_fc_clip_results(self, fc_clip_file="fc_clip.json", data_dir=None):
@@ -154,7 +165,10 @@ class VisualGenome:
             data_dir = self.data_dir
 
         if version == 2:
-            sam_file = "sam2.json"
+            if isinstance(self, VrRVG):
+                sam_file = "../sam2.json"
+            else:
+                sam_file = "sam2.json"
 
         sam_file_path = os.path.join(data_dir, sam_file)
 
@@ -267,7 +281,7 @@ class VisualGenome:
         if isinstance(im, Image):
             im = im.id
         return self.SAM[im]
-    
+
     def get_image_attributes(self, im):
         # Check if id is an instance of Image
         if isinstance(im, Image):
@@ -411,9 +425,19 @@ class VisualGenome:
 
         ev = f"{edges / vertices:.2f}" if vertices != 0 else "N/A"
 
-        average_attr_inv_freq = self.get_average_inv_freq(attrs, self.attr_inv_freq)
-        average_rel_inv_freq = self.get_average_inv_freq(rels, self.rel_inv_freq)
-        average_obj_inv_freq = self.get_average_object_freq(objs)
+        if isinstance(self, VrRVG):
+            average_attr_inv_freq = "Not available"
+            average_rel_inv_freq = "Not available"
+            average_obj_inv_freq = "Not available"
+            components = "Not available"
+        else:
+            average_attr_inv_freq = self.get_average_inv_freq(attrs, self.attr_inv_freq)
+            average_rel_inv_freq = self.get_average_inv_freq(rels, self.rel_inv_freq)
+            average_obj_inv_freq = self.get_average_object_freq(objs)
+
+            average_attr_inv_freq = f"{average_attr_inv_freq:.6f}"
+            average_obj_inv_freq = f"{average_obj_inv_freq:.6f}"
+            average_rel_inv_freq = f"{average_rel_inv_freq:.6f}"
 
         stat = {
             "# of objects": num_objects,
@@ -426,9 +450,9 @@ class VisualGenome:
             "# of objects with missing synsets": objects_without_synset,
             "# of attributes with missing synsets": missing_attribute_synsets,
             "# of relationships with missing synsets": missing_relationship_synsets,
-            "Average attribute inverse frequency": f"{average_attr_inv_freq:.6f}",
-            "Average object inverse frequency": f"{average_obj_inv_freq:.6f}",
-            "Average relationship inverse frequency": f"{average_rel_inv_freq:.6f}",
+            "Average attribute inverse frequency": average_attr_inv_freq,
+            "Average object inverse frequency": average_obj_inv_freq,
+            "Average relationship inverse frequency": average_rel_inv_freq,
         }
         stat["# of SAM segmentations"] = "Not available"
         stat["# of SAM 2 segmentations"] = "Not available"
@@ -607,7 +631,12 @@ class VisualGenome:
             data_dir = self.data_dir
         data_file = os.path.join(data_dir, "image_data.json")
         data = json.load(open(data_file))
-        return [utils.parse_image_data(image) for image in data]
+        images = {}
+        for image in data:
+            id = int(image["image_id"])
+            images[id] = utils.parse_image_data(image)
+
+        return images
 
     def generate_scene_graph_json(self, image_id):
         image = self.get_image(image_id)
@@ -1136,7 +1165,7 @@ class VisualGenome:
         plt.axis("off")  # Hide axis
         plt.show()
 
-    def get_all_region_descriptions(self, data_dir=None):
+    def get_all_region_descriptions(self, images, data_dir=None):
         """
         Get all region descriptions.
 
@@ -1146,20 +1175,19 @@ class VisualGenome:
             data_dir = self.data_dir
 
         data_file = os.path.join(data_dir, "region_descriptions.json")
-        image_data = self.get_all_image_data(data_dir)
-
-        # Create a map of image IDs to image data
-        image_map = {d.id: d for d in image_data}
 
         # Load JSON data using a context manager
         with open(data_file, "r") as file:
-            images = json.load(file)
+            region_descriptions_per_image = json.load(file)
 
         # Parse region descriptions for each image
-        return [
-            utils.parse_region_descriptions(image["regions"], image_map[image["id"]])
-            for image in images
-        ]
+        region_descriptions = {}
+        for image in region_descriptions_per_image:
+            image_id = int(image["id"])
+            region_descriptions[image_id] = utils.parse_region_descriptions(
+                image["regions"], images[image_id]
+            )
+        return region_descriptions
 
     def get_all_relationships(self, data_dir=None):
         """
@@ -1173,19 +1201,17 @@ class VisualGenome:
         data_file = os.path.join(data_dir, "relationships.json")
         images = json.load(open(data_file))
 
-        relationships = []
+        relationships = {}
         synset1_history = {}
         rels_without_synsets = []
         for image in images:
             image_id = image["image_id"]
-            relationships.append(
-                utils.parse_relationships(
-                    image["relationships"],
-                    image_id,
-                    synset1_history,
-                    self.relationship_synsets,
-                    rels_without_synsets,
-                )
+            relationships[int(image_id)] = utils.parse_relationships(
+                image["relationships"],
+                image_id,
+                synset1_history,
+                self.relationship_synsets,
+                rels_without_synsets,
             )
 
         for rel in rels_without_synsets:
@@ -1295,13 +1321,11 @@ class VisualGenome:
         data_file = os.path.join(data_dir, "attributes.json")
         images = json.load(open(data_file))
 
-        attributes = []
+        attributes = {}
         for image in images:
-            image_id = image["image_id"]
-            attributes.append(
-                utils.parse_attributes(
-                    image["attributes"], image_id, self.attribute_synsets
-                )
+            image_id = int(image["image_id"])
+            attributes[image_id] = utils.parse_attributes(
+                image["attributes"], image_id, self.attribute_synsets
             )
 
         return attributes
@@ -1319,18 +1343,17 @@ class VisualGenome:
         synset1_history = {}
         obs_without_synsets = []
 
-        output = []
+        output = {}
         for image in images:
             image_url = image["image_url"] if "image_url" in image else None
-            output.append(
-                utils.parse_objects(
-                    image["objects"],
-                    image["image_id"],
-                    image_url,
-                    self.object_synsets,
-                    synset1_history,
-                    obs_without_synsets,
-                )
+            image_id = int(image["image_id"])
+            output[image_id] = utils.parse_objects(
+                image["objects"],
+                image["image_id"],
+                image_url,
+                self.object_synsets,
+                synset1_history,
+                obs_without_synsets,
             )
         return output
 
@@ -1442,6 +1465,8 @@ class VisualGenome:
                                   If False, only the object names will be shown. Defaults to True.
         object_ids (list, optional): List of object IDs to visualize. If None, all objects will be visualized.
         """
+        if isinstance(self, VrRVG):
+            synsets = False  # synsets are not available in the VrRVG dataset
         if not object_ids:
             object_ids = [o.id for o in self.get_image_objects(image_id)]
 
@@ -1781,3 +1806,77 @@ class VisualGenome:
             rels.append(Relationship(i, s, v, o, []))
 
         return Graph(image, objs, rels, atrs)
+
+
+class VrRVG(VisualGenome):
+    def __init__(self, data_dir=None):
+        if data_dir is None:
+            data_dir = utils.get_data_dir("VrR-VG")
+        self.data_dir = data_dir
+
+        # ignore the following variables for VrR-VG
+        self.attribute_synsets = {}
+        self.object_synsets = {}
+        self.relationship_synsets = {}
+
+        self.object_aliases = []
+        self.relationship_alias = []
+
+        print("Loading data...")
+        images = self.get_all_image_data(data_dir)
+        objects = self.get_all_objects(data_dir)
+        region_descriptions = self.get_all_region_descriptions(images, data_dir)
+        attributes = self.get_all_attributes(data_dir)
+        relationships = self.get_all_relationships(data_dir)
+
+        self.IMAGES = {}
+        self.REGIONS = {}
+        self.OBJECTS = {}
+        self.ATTRIBUTES = {}
+        self.RELATIONSHIPS = {}
+        self.SAM = None
+        self.SAM2 = None
+        self.FC_CLIP_ALL = None  # stores all details
+        self.FC_CLIP = None  # stores only the number of unique classes
+
+        for id in images:
+            self.IMAGES[id] = {"image": images[id], "regions": [], "objects": []}
+
+        for id in images:
+            image_regions = region_descriptions.get(id, [])
+            image_objects = objects.get(id, [])
+            image_attributes = attributes.get(id, [])
+            image_relationships = relationships.get(id, [])
+            # Process regions
+            first_region = image_regions[0]
+            image_id = first_region.image.id
+            for region in image_regions:
+                self.REGIONS[region.id] = region
+            self.IMAGES[image_id]["regions"] = image_regions
+
+            if len(image_objects) == 0:
+                continue
+            # Process objects
+            for obj in image_objects:
+                self.OBJECTS[obj.id] = {
+                    "object": obj,
+                    "attributes": [],
+                    "relationships": [],
+                }
+            self.IMAGES[image_id]["objects"] = image_objects
+
+            for attr in image_attributes:
+                self.ATTRIBUTES[attr.id] = attr
+                if (
+                    attr.object_id in self.OBJECTS
+                ):  # ignore attributes on merged objects
+                    self.OBJECTS[attr.object_id]["attributes"].append(attr)
+            for rel in image_relationships:
+                self.RELATIONSHIPS[rel.id] = rel
+                if (
+                    rel.subject_id in self.OBJECTS and rel.object_id in self.OBJECTS
+                ):  # ignore relationships on merged objectss
+                    self.OBJECTS[rel.subject_id]["relationships"].append(rel)
+                    self.OBJECTS[rel.object_id]["relationships"].append(rel)
+
+        print("Data loaded.")
