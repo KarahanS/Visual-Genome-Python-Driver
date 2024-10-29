@@ -638,7 +638,7 @@ class VisualGenome:
 
         return images
 
-    def generate_scene_graph_json(self, image_id):
+    def generate_scene_graph_json(self, image_id, include_regions=False):
         image = self.get_image(image_id)
         objects = self.get_image_objects(image_id)
         attributes = self.get_image_attributes(image_id)
@@ -669,7 +669,41 @@ class VisualGenome:
         stats = self.get_image_statistics(image_id)
         data = data | stats
 
+        data["regions"] = []
+        if include_regions:
+            regions = self.get_image_regions(image_id)
+            region_phrases = []
+            for region in regions:
+                region_phrases.append(
+                    {
+                        "phrase": region.phrase,
+                        "x": region.x,
+                        "y": region.y,
+                        "width": region.width,
+                        "height": region.height,
+                    }
+                )
+            data["regions"] = region_phrases
+
+        data["dataset"] = "Visual Genome" if isinstance(self, VisualGenome) else "VrRVG"
         return data
+
+    def randomly_visualize(self, n=1, include_regions=False, ims=None):
+        if not ims:
+            ims = self.get_image_ids()
+        for i in range(n):
+            im = random.choice(ims)
+            scene_graph = self.generate_scene_graph_json(
+                im, include_regions=include_regions
+            )
+
+            # save to graph.json
+            if i >= 1:
+                filename = f"../graphviz/scene_graph{i}.json"
+            else:
+                filename = f"../graphviz/scene_graph.json"
+            with open(filename, "w") as f:
+                json.dump(scene_graph, f)
 
     def read_masks_from_folder(self, image_id, anns_file="metadata.csv", data_dir=None):
         """

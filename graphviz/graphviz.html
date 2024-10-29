@@ -14,7 +14,7 @@
     <script src="graphlib.min.js"></script>
     <script src="joint.js"></script>
 
-    <!-- Define the styles of the graphs. -->
+    <!-- Define the styles of the graphs and regions. -->
     <style>
         g text {
             font-weight: 300;
@@ -33,112 +33,206 @@
         .attr rect {
             fill: rgba(0, 0, 255, 0.3);
         }
+        
+        .regions-container {
+            margin-top: 20px;
+            padding: 10px;
+        }
+        
+        .region-item {
+            margin: 5px 0;
+            padding: 8px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .region-item:hover {
+            background-color: #e9ecef;
+        }
+        
+        .region-item.active {
+            background-color: #cce5ff;
+        }
+        
+        .image-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .bounding-box {
+            position: absolute;
+            border: 2px solid #ff0000;
+            background-color: rgba(255, 0, 0, 0.2);
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
     </style>
 
 </head>
 
 <body>
-    <!-- List basic statistics of the graph. -->
+    <!-- Rest of your existing statistics HTML -->
     <div class='container'>
-        <div style='margin: 10px;' class="row">
+        <div class="row mt-3 mb-4">
             <div class="col-12">
-                <div class="row text-center">
-                    <div class="col-3">
-                        <div class='stat_element'>Objects:</div>
-                        <div class='stat_element'><span id='num_objects'></span></div>
+                <h2 class="text-center" id="dataset-title" style="color: #2c3e50; font-weight: 500;"></h2>
+            </div>
+        </div>
+        <div class='container'>
+            <div style='margin: 10px;' class="row">
+                <div class="col-12">
+                    <div class="row text-center">
+                        <div class="col-3">
+                            <div class='stat_element'>Objects:</div>
+                            <div class='stat_element'><span id='num_objects'></span></div>
+                        </div>
+                        <div class="col-3">
+                            <div class='stat_element'>Attributes:</div>
+                            <div class='stat_element'><span id='num_attributes'></span></div>
+                        </div>
+                        <div class="col-3">
+                            <div class='stat_element'>Relationships:</div>
+                            <div class='stat_element'><span id='num_relationships'></span></div>
+                        </div>
+                        <div class="col-3">
+                            <div class='stat_element'>V/N:</div>
+                            <div class='stat_element'><span id='vertex_node_ratio'></span></div>
+                        </div>
+                        <div class="col-2">
+                            <div class='stat_element'>Unique objects:</div>
+                            <div class='stat_element'><span id='unique_objects'></span></div>
+                        </div>
+                        <div class="col-2">
+                            <div class='stat_element'>Unique Attributes:</div>
+                            <div class='stat_element'><span id='unique_attrs'></span></div>
+                        </div>
+                        <div class="col-2">
+                            <div class='stat_element'>Unique Relationships:</div>
+                            <div class='stat_element'><span id='unique_rels'></span></div>
+                        </div>
+                        <div class="col-2">
+                            <div class='stat_element'>Objects with missing synsets:</div>
+                            <div class='stat_element'><span id='objects_without_synsets'></span></div>
+                        </div>
+                        <div class="col-2">
+                            <div class='stat_element'>Attributes with missing synsets:</div>
+                            <div class='stat_element'><span id='attributes_without_synsets'></span></div>
+                        </div>
+                        <div class="col-2">
+                            <div class='stat_element'>Relationships with missing synsets:</div>
+                            <div class='stat_element'><span id='relationships_without_synsets'></span></div>
+                        </div>
+                        <div class="col-2">
+                            <div class='stat_element'># of SAM segmentations:</div>
+                            <div class='stat_element'><span id='SAM_segmentations'></span></div>
+                        </div>
+                        <div class="col-2">
+                            <div class='stat_element'># of SAM 2 segmentations:</div>
+                            <div class='stat_element'><span id='SAM2_segmentations'></span></div>
+                        </div>
+                        <div class="col-2">
+                            <div class='stat_element'># of FC CLIP classes:</div>
+                            <div class='stat_element'><span id='FC_CLIP_classes'></span></div>
+                        </div>
                     </div>
-                    <div class="col-3">
-                        <div class='stat_element'>Attributes:</div>
-                        <div class='stat_element'><span id='num_attributes'></span></div>
-                    </div>
-                    <div class="col-3">
-                        <div class='stat_element'>Relationships:</div>
-                        <div class='stat_element'><span id='num_relationships'></span></div>
-                    </div>
-                    <div class="col-3">
-                        <div class='stat_element'>V/N:</div>
-                        <div class='stat_element'><span id='vertex_node_ratio'></span></div>
-                    </div>
-                    <div class="col-2">
-                        <div class='stat_element'>Unique objects:</div>
-                        <div class='stat_element'><span id='unique_objects'></span></div>
-                    </div>
-                    <div class="col-2">
-                        <div class='stat_element'>Unique Attributes:</div>
-                        <div class='stat_element'><span id='unique_attrs'></span></div>
-                    </div>
-                    <div class="col-2">
-                        <div class='stat_element'>Unique Relationships:</div>
-                        <div class='stat_element'><span id='unique_rels'></span></div>
-                    </div>
-                    <div class="col-2">
-                        <div class='stat_element'>Objects with missing synsets:</div>
-                        <div class='stat_element'><span id='objects_without_synsets'></span></div>
-                    </div>
-                    <div class="col-2">
-                        <div class='stat_element'>Attributes with missing synsets:</div>
-                        <div class='stat_element'><span id='attributes_without_synsets'></span></div>
-                    </div>
-                    <div class="col-2">
-                        <div class='stat_element'>Relationships with missing synsets:</div>
-                        <div class='stat_element'><span id='relationships_without_synsets'></span></div>
-                    </div>
-                    <div class="col-2">
-                        <div class='stat_element'># of SAM segmentations:</div>
-                        <div class='stat_element'><span id='SAM_segmentations'></span></div>
-                    </div>
-                    <div class="col-2">
-                        <div class='stat_element'># of SAM 2 segmentations:</div>
-                        <div class='stat_element'><span id='SAM2_segmentations'></span></div>
-                    </div>
-                    <div class="col-2">
-                        <div class='stat_element'># of FC CLIP classes:</div>
-                        <div class='stat_element'><span id='FC_CLIP_classes'></span></div>
-                    </div>
-                </div>
-                <!-- Add the image to the image-container div. -->
-                <div class="row">
-                    <div class="col-6">
-                        <div id='image-container'></div>
-                    </div>
-                    <div class="col-6">
-                        <!-- Creates the graph visualization in the image-graph div. -->
-                        <div style='margin: 50px;' id='image-graph'></div>
+                    <!-- Add the image and regions container -->
+                    <div class="row">
+                        <div class="col-6">
+                            <div id='image-container'></div>
+                            <div id='regions-container' class='regions-container'></div>
+                        </div>
+                        <div class="col-6">
+                            <!-- Creates the graph visualization in the image-graph div. -->
+                            <div style='margin: 50px;' id='image-graph'></div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
+        <!-- Modified image and regions container -->
+        <div class="row">
+            <div class="col-6">
+                <div class="image-wrapper" id='image-container'></div>
+                <div id='regions-container' class='regions-container'></div>
+            </div>
+            <div class="col-6">
+                <div style='margin: 50px;' id='image-graph'></div>
+            </div>
+        </div>
     </div>
 
-    <!-- Location of where the graph is stored as js file. I read from a javascript file to avoid cross origin errors. -->
     <script type='text/javascript' src='scene_graph.js'></script>
-
-    <!-- Load function that generates the graph visualization. -->
     <script type='text/javascript' src='render-scene-graph.js'></script>
 
-    <!-- Read the graph, display the image and generate the graph visualization. -->
     <script>
         var imageContainer = $('#image-container');
+        var regionsContainer = $('#regions-container');
+        var imageScale = 1;
+        
         var img = new Image();
+        
         img.onload = function() {
-            // Create image element with original aspect ratio but max dimensions of 400x400
+            var OFFSET_X = 15 // Add this offset constant
+            // Calculate image scaling
             var aspectRatio = this.width / this.height;
             var maxWidth = 400;
             var maxHeight = 400;
             var width = maxWidth;
             var height = width / aspectRatio;
             
-            // If height is too big, scale based on height instead
             if (height > maxHeight) {
                 height = maxHeight;
                 width = height * aspectRatio;
             }
             
+            imageScale = width / this.width; // Store scale factor for bounding boxes
+            
             var image = $("<img style='width:" + width + "px; height:" + height + "px;' src='" + graph.url + "'></img>");
             imageContainer.append(image);
+            
+            // Display regions if they exist
+            if (graph.regions && graph.regions.length > 0) {
+                graph.regions.forEach(function(region, index) {
+                    // Create clickable region item
+                    var regionElement = $("<div class='region-item' data-region-index='" + index + "'>" +
+                        "Region " + (index + 1) + ": " + region.phrase + "</div>");
+                    regionsContainer.append(regionElement);
+                    
+                    // Create hidden bounding box
+                    var boundingBox = $("<div class='bounding-box'></div>")
+                        .css({
+                            left: (region.x * imageScale +  OFFSET_X) + 'px',
+                            top: (region.y * imageScale) + 'px',
+                            width: (region.width * imageScale) + 'px',
+                            height: (region.height * imageScale) + 'px',
+                            opacity: 0
+                        });
+                    imageContainer.append(boundingBox);
+                });
+                
+                // Add click handlers
+                $('.region-item').click(function() {
+                    var index = $(this).data('region-index');
+                    
+                    // Toggle active state for clicked item
+                    $(this).toggleClass('active');
+                    
+                    // Toggle corresponding bounding box
+                    $('.bounding-box').eq(index).css('opacity', 
+                        $(this).hasClass('active') ? 1 : 0
+                    );
+                });
+            }
         };
         img.src = graph.url;
-        $('#num_objects').text(graph.objects.length)
+        
+        var datasetName = graph.dataset === "VrR-VG" ? "VrR-VG Dataset" : "Visual Genome Dataset";
+        $('#dataset-title').text(datasetName);
+        
+        // Your existing statistics code
+        $('#num_objects').text(graph.objects.length);
         $('#num_attributes').text(graph.attributes.length)
         $('#num_relationships').text(graph.relationships.length)
         $('#vertex_node_ratio').text(((graph.attributes.length + graph.relationships.length * 2) / (graph.objects.length + graph.attributes.length + graph.relationships.length)).toFixed(2));
