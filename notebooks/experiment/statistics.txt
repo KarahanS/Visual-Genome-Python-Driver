@@ -1,0 +1,8 @@
+Generated 100000 comparisons
+Saved to: comparisons.csv
+
+Image Usage Statistics:
+Total images: 1000
+Average appearances per image: 200.00
+Min appearances: 174
+Max appearances: 228

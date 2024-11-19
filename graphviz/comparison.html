@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css" integrity="sha384-WskhaSGFgHYWDcbwN70/dfYBj47jz9qbsMId/iRN3ewGhXQFZCSftd1LZCfmhktB" crossorigin="anonymous">
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/js/bootstrap.min.js" integrity="sha384-smHYKdLADwkXOn1EmN1qk/HfnUcbVRZyYmZ4qpPea6sjB/pTJ0euyQp0Mk8ck+5T" crossorigin="anonymous"></script>
+    <script src="http://underscorejs.org/underscore-min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/3.10.1/lodash.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/backbone.js/1.3.3/backbone.js"></script>
+
+    <link rel="stylesheet" type="text/css" href="joint.min.css" />
+    <script src="dagre.min.js"></script>
+    <script src="graphlib.min.js"></script>
+    <script src="joint.js"></script>
+    <style>
+/* Basic text and graph styles */
+g text {
+    font-weight: 300;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 14px;
+}
+
+.object rect { fill: rgba(255, 0, 0, 0.3); }
+.pred rect { fill: rgba(0, 255, 0, 0.3); }
+.attr rect { fill: rgba(0, 0, 255, 0.3); }
+
+/* Container layouts */
+.images-container {
+    display: flex;
+    justify-content: space-between;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.single-image-container {
+    width: 48%;
+    text-align: center;
+    position: relative;
+}
+
+.single-image-container img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Button styles */
+.button-container {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin: 20px 0;
+}
+
+.toggle-btn {
+    padding: 12px 24px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    min-width: 200px;
+}
+
+.toggle-btn:hover {
+    background-color: #0056b3;
+    transform: translateY(-1px);
+}
+
+.toggle-btn:active {
+    transform: translateY(0);
+}
+
+/* Section containers */
+.details-section, .regions-section {
+    display: none;
+    margin-top: 20px;
+    padding: 20px;
+    border-radius: 8px;
+    background-color: #ffffff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Scene graph styles */
+.scene-graph-container {
+    margin: 20px 0;
+    padding: 20px;
+    border: 1px solid #eee;
+    border-radius: 5px;
+    min-height: 500px;
+}
+
+#image-graph-0, #image-graph-1 {
+    width: 100%;
+    height: 500px;
+    overflow: visible;
+    position: relative;
+}
+
+.joint-paper {
+    overflow: visible !important;
+}
+
+.joint-paper svg {
+    overflow: visible !important;
+}
+
+/* Stats grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.stat-item {
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    text-align: center;
+}
+
+/* Region styles */
+.regions-container {
+    margin-top: 20px;
+    padding: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.regions-comparison {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.regions-column {
+    width: 48%;
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.regions-list {
+    margin-top: 15px;
+}
+
+.region-item, .region-desc {
+    margin: 5px 0;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    border: 1px solid #dee2e6;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.region-item:hover, .region-desc:hover {
+    background-color: #e9ecef;
+    transform: translateX(2px);
+}
+
+.region-item.active, .region-desc.active {
+    background-color: #cce5ff;
+    border-color: #b8daff;
+}
+
+.bounding-box {
+    position: absolute;
+    border: 2px solid #ff0000;
+    background-color: rgba(255, 0, 0, 0.2);
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+</style>
+</head>
+
+<body>
+    <div class='container'>
+        <!-- Images Section -->
+        <div class="images-container">
+            <div class="single-image-container" id="image-container-0">
+                <!-- First image will be loaded here -->
+            </div>
+            <div class="single-image-container" id="image-container-1">
+                <!-- Second image will be loaded here -->
+            </div>
+        </div>
+
+        <div class="button-container">
+            <button class="toggle-btn" onclick="toggleDetails()">Show Details</button>
+            <button class="toggle-btn" onclick="toggleRegions()">Show Region Descriptions</button>
+        </div>
+
+        <!-- Details Section -->
+        <div class="details-container" id="details-container">
+            <!-- Scene 1 Details -->
+            <div class="scene-details">
+                <h3 class="text-center">Scene 1 Details</h3>
+                <div class="stats-grid" id="stats-0"></div>
+                <div class="scene-graph-container">
+                    <div id="image-graph-0"></div>
+                    <div id="regions-container-0" class="regions-container"></div>
+                </div>
+            </div>
+
+            <!-- Scene 2 Details -->
+            <div class="scene-details">
+                <h3 class="text-center">Scene 2 Details</h3>
+                <div class="stats-grid" id="stats-1"></div>
+                <div class="scene-graph-container">
+                    <div id="image-graph-1"></div>
+                    <div id="regions-container-1" class="regions-container"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="regions-section" id="regions-section">
+        <div class="regions-comparison">
+            <div class="regions-column">
+                <h3 class="text-center">Scene 1 Regions</h3>
+                <div class="regions-list" id="regions-list-0"></div>
+            </div>
+            <div class="regions-column">
+                <h3 class="text-center">Scene 2 Regions</h3>
+                <div class="regions-list" id="regions-list-1"></div>
+            </div>
+        </div>
+    </div>
+    <script type='text/javascript' src='scene_graphs.js'></script>
+    <script type='text/javascript' src='render-scene-graph.js'></script>
+
+    <script>
+ 
+        
+        function toggleRegions() {
+            const regionsSection = document.getElementById('regions-section');
+            const regionsButton = document.querySelectorAll('.toggle-btn')[1];
+            
+            if (regionsSection.style.display === 'none' || !regionsSection.style.display) {
+                regionsSection.style.display = 'block';
+                regionsButton.textContent = 'Hide Region Descriptions';
+            } else {
+                regionsSection.style.display = 'none';
+                regionsButton.textContent = 'Show Region Descriptions';
+            }
+        }
+        function displayRegions(graph, containerId, imageContainerId) {
+            const container = document.getElementById(containerId);
+            if (graph.regions && graph.regions.length > 0) {
+                const regionsHtml = graph.regions.map((region, index) => `
+                    <div class="region-desc" 
+                         data-region-index="${index}"
+                         onclick="toggleRegionHighlight(${index}, '${imageContainerId}', this)">
+                        Region ${index + 1}: ${region.phrase}
+                    </div>
+                `).join('');
+                container.innerHTML = regionsHtml;
+            } else {
+                container.innerHTML = '<div class="region-desc">No regions available</div>';
+            }
+        }
+    
+        function toggleRegionHighlight(index, imageContainerId, element) {
+            const imageContainer = document.getElementById(imageContainerId);
+            const boundingBox = imageContainer.querySelectorAll('.bounding-box')[index];
+            const isActive = element.classList.toggle('active');
+            
+            if (boundingBox) {
+                boundingBox.style.opacity = isActive ? '1' : '0';
+            }
+        }
+
+        function createStatsElement(containerId, graph) {
+            const container = document.getElementById(containerId);
+            const stats = [
+                { label: 'Objects', value: graph.objects.length },
+                { label: 'Attributes', value: graph.attributes.length },
+                { label: 'Relationships', value: graph.relationships.length },
+                { label: 'Unique Objects', value: graph.unique_objects },
+                { label: 'Unique Attributes', value: graph.unique_attrs },
+                { label: 'Unique Relationships', value: graph.unique_rels },
+                { label: 'Missing Object Synsets', value: graph.objects_without_synsets },
+                { label: 'Missing Attribute Synsets', value: graph.attributes_without_synsets },
+                { label: 'Missing Relationship Synsets', value: graph.relationships_without_synsets },
+                { label: 'SAM Segmentations', value: graph.SAM_segmentations },
+                { label: 'SAM2 Segmentations', value: graph.SAM2_segmentations },
+                { label: 'FC CLIP Classes', value: graph.FC_CLIP_classes }
+            ];
+
+            stats.forEach(stat => {
+                const div = document.createElement('div');
+                div.className = 'stat-item';
+                div.innerHTML = `<div>${stat.label}</div><div>${stat.value}</div>`;
+                container.appendChild(div);
+            });
+        }
+    
+        graphs.forEach((graph, index) => {
+            const img = new Image();
+            const imageContainer = document.getElementById(`image-container-${index}`);
+            imageContainer.style.position = 'relative';
+            
+            img.onload = function() {
+                const maxWidth = imageContainer.offsetWidth;
+                const aspectRatio = this.width / this.height;
+                const width = Math.min(maxWidth, this.width);
+                const height = width / aspectRatio;
+                const imageScale = width / this.width;
+                
+                const image = document.createElement('img');
+                image.src = graph.url;
+                image.style.width = width + 'px';
+                image.style.height = height + 'px';
+                imageContainer.appendChild(image);
+        
+                if (graph.regions && graph.regions.length > 0) {
+                    const OFFSET_X = 15;
+                    graph.regions.forEach((region, regionIndex) => {
+                        const boundingBox = document.createElement('div');
+                        boundingBox.className = 'bounding-box';
+                        boundingBox.style.left = (region.x * imageScale + OFFSET_X) + 'px';
+                        boundingBox.style.top = (region.y * imageScale) + 'px';
+                        boundingBox.style.width = (region.width * imageScale) + 'px';
+                        boundingBox.style.height = (region.height * imageScale) + 'px';
+                        boundingBox.style.opacity = '0';
+                        imageContainer.appendChild(boundingBox);
+                    });
+                }
+            };
+            img.src = graph.url;
+        
+            createStatsElement(`stats-${index}`, graph);
+            displayRegions(graph, `regions-list-${index}`, `image-container-${index}`);
+        });
+        
+        // Update the toggleDetails function to render graphs when shown:
+        function toggleDetails() {
+            const detailsContainer = document.getElementById('details-container');
+            const button = document.querySelectorAll('.toggle-btn')[0];
+            
+            if (detailsContainer.style.display === 'none' || !detailsContainer.style.display) {
+                detailsContainer.style.display = 'block';
+                button.textContent = 'Hide Details';
+                // Render graphs only when showing details
+                graphs.forEach((graph, index) => {
+                    renderSceneGraph(`#image-graph-${index}`, graph);
+                });
+            } else {
+                detailsContainer.style.display = 'none';
+                button.textContent = 'Show Details';
+            }
+        }
+        
+        // Add this line at the start to hide sections initially
+        document.getElementById('details-container').style.display = 'none';
+        document.getElementById('regions-section').style.display = 'none';
+    </script>
+</body>
+</html>
