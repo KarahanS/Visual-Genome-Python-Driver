@@ -705,6 +705,23 @@ class VisualGenome:
             with open(filename, "w") as f:
                 json.dump(scene_graph, f)
 
+    def get_all_objects(self, data_dir=None):
+        """
+        Get all objects
+        Returns:
+            List(Object) objects
+        """
+        if data_dir is None:
+            data_dir = self.data_dir
+        data_file = os.path.join(data_dir, "objects.json")
+        data = json.load(open(data_file))
+        objects = {}
+        for obj in data:
+            id = int(obj["object_id"])
+            objects[id] = utils.parse_object_data(obj)
+
+        return objects
+
     def read_masks_from_folder(self, image_id, anns_file="metadata.csv", data_dir=None):
         """
         Reads masks and metadata from the specified folder.
