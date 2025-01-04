@@ -5,7 +5,7 @@ import warnings
 import pandas as pd
 
 
-def convert_matrix_to_comparisons(comparison_matrix):
+def convert_matrix_to_comparisons(probability_matrix):
     """
     Convert a comparison matrix to a list of (winner, loser) pairs.
     The matrix values are first rescaled from [0,1] to [0.33,0.66].
@@ -23,13 +23,14 @@ def convert_matrix_to_comparisons(comparison_matrix):
         return 0.33 + (0.66 - 0.33) * value
 
     comparisons = []
-    n_players = len(comparison_matrix)
+    n_players = len(probability_matrix)
+    comparison_matrix = np.zeros((n_players, n_players))
 
     for i in range(n_players):
         for j in range(n_players):
             if i != j:  # Skip self-comparisons
                 # Scale the probability to [0.33, 0.66]
-                rescaled_prob = rescale_to_33_66(comparison_matrix[i, j])
+                rescaled_prob = rescale_to_33_66(probability_matrix[i, j])
 
                 # Convert to integer number of comparisons
                 # Multiply by 100 to preserve decimal precision
@@ -37,8 +38,9 @@ def convert_matrix_to_comparisons(comparison_matrix):
 
                 # Add the pairs to the comparison list
                 comparisons.extend([(i, j)] * n_comparisons)
+                comparison_matrix[i, j] = n_comparisons
 
-    return comparisons
+    return comparisons, comparison_matrix
 
 
 def calculate_standard_errors(parameters, comparison_matrix):
@@ -108,7 +110,7 @@ def rescale_matrix_values(matrix):
     return rescaled
 
 
-def fit_bradley_terry(comparison_matrix, method="lsr", alpha=0.05):
+def fit_bradley_terry(probability_matrix, method="lsr", alpha=0.05):
     """
     Fit Bradley-Terry model using choix library and calculate statistical measures.
     Now includes connectivity check, perturbation if needed, and rating rescaling.
@@ -116,8 +118,8 @@ def fit_bradley_terry(comparison_matrix, method="lsr", alpha=0.05):
     # comparison_matrix = rescale_matrix_values(comparison_matrix)
     # Check directed connectivity
 
-    n_players = len(comparison_matrix)
-    comparisons = convert_matrix_to_comparisons(comparison_matrix)
+    n_players = len(probability_matrix)
+    comparisons, comparison_matrix = convert_matrix_to_comparisons(probability_matrix)
 
     # Fit the model using specified method
     if method == "lsr":
@@ -141,6 +143,13 @@ def fit_bradley_terry(comparison_matrix, method="lsr", alpha=0.05):
     # Calculate p-values
     z_scores = parameters / std_errors
     p_values = 2 * (1 - stats.norm.cdf(np.abs(z_scores)))
+
+    significants = []
+    for p in p_values:
+        if p < alpha:
+            significants.append(True)
+
+    print(f"Significant: {len(significants)} out of {len(p_values)}")
 
     # Convert parameters to probability scale
     exp_params = np.exp(parameters)
@@ -203,25 +212,7 @@ def check_directed_connectivity(comparison_matrix):
     return True
 
 
-def create_perturbed_matrix(comparison_matrix, epsilon=1):
-    """
-    Create perturbed adjacency matrix following equation (2) in the paper:
-    ãᵢⱼ = aᵢⱼ + εI(nᵢⱼ > 0 or nⱼᵢ > 0)
-    Matrix is first multiplied by 10 to handle decimal values.
-    """
-    # Scale the matrix first
-    scaled_matrix = comparison_matrix * 10
-
-    # Create indicator matrix for any comparison between i and j
-    indicator = ((scaled_matrix + scaled_matrix.T) > 0).astype(float)
-
-    # Apply perturbation: ãᵢⱼ = aᵢⱼ + εI(nᵢⱼ > 0 or nⱼᵢ > 0)
-    perturbed_matrix = scaled_matrix + epsilon * indicator
-
-    return perturbed_matrix
-
-
-def print_and_save_results(results, method, comparison_matrix):
+def print_and_save_results(results, method, comparison_matrix, id_mapping):
     """
     Print detailed results and save rankings to CSV using original image IDs.
     Includes:
@@ -230,7 +221,6 @@ def print_and_save_results(results, method, comparison_matrix):
     - Normalized ratings and ranks
     """
     # Load the index to ID mapping
-    id_mapping = np.load("sem/npy/id_to_index.npy", allow_pickle=True).item()
     index_to_id = {v: k for k, v in id_mapping.items()}
 
     # Create DataFrame first to help with calculations
@@ -376,23 +366,21 @@ def print_correlations(df):
 
 def example_usage():
     # Load comparison matrix
-    comparison_matrix = np.load("sem/npy/probability_matrix.npy")
+    comparison_matrix = np.load("vis/npy/probability_matrix.npy")
+    id_mapping = np.load("vis/npy/id_to_index.npy", allow_pickle=True).item()
 
     # Fit model using different methods
-    methods = ["lsr", "mm", "opt"]
+    methods = ["lsr"]  # "mm", "opt"]
 
     all_rankings = {}
 
     for method in methods:
         results = fit_bradley_terry(comparison_matrix, method=method)
-        rankings_df = print_and_save_results(results, method, comparison_matrix)
+        rankings_df = print_and_save_results(
+            results, method, comparison_matrix, id_mapping
+        )
 
         all_rankings[method] = rankings_df
-
-        # Get the id mapping for the example
-        id_mapping = np.load("sem/npy/id_to_index.npy", allow_pickle=True).item()
-        index_to_id = {v: k for k, v in id_mapping.items()}
-
     return all_rankings
 
 
