@@ -12,7 +12,15 @@ def _append(d, k, x):
         d[k].append(x)
 
 
-def cross_validate(df, N=3, M=1, stratify=False):
+def cross_validate(
+    df,
+    N=3,
+    M=1,
+    stratify=False,
+    target="predicted_complexity",
+    model_strs=None,
+    return_preds=False,
+):
     # model --> metrics (one array for each)
     model_results = {}
 
@@ -33,37 +41,24 @@ def cross_validate(df, N=3, M=1, stratify=False):
                 for s in mod_strs:
                     if s not in model_results:
                         model_results[s] = {}
-                    results = line_regression("predicted_complexity", s, df_tr, df_te)
+                    results = line_regression(target, s, df_tr, df_te, return_preds)
+
+                    if return_preds:
+                        # Initialize predictions dict if it doesn't exist
+                        if "predictions" not in model_results[s]:
+                            model_results[s]["predictions"] = {}
+
+                        # Add predictions for each image ID
+                        for img_id, pred in results["predictions"].items():
+                            if img_id not in model_results[s]["predictions"]:
+                                model_results[s]["predictions"][img_id] = []
+                            model_results[s]["predictions"][img_id].append(pred)
+
+                        # Remove predictions from results before adding other metrics
+                        del results["predictions"]
+
                     for k, v in results.items():
                         _append(model_results[s], k, v)
-
-            # ours
-            model_strs = [
-                "sqrt_seg_64points",
-                "sqrt_num_classes",
-                "sqrt_seg_64points + sqrt_num_classes",
-                "sqrt_seg_64points_x_sqrt_num_classes",
-                "sqrt_seg_64points_x_sqrt_num_classes + sqrt_seg_64points + sqrt_num_classes",
-                "avg_region_similarity",
-                "avg_rel_similarity",
-                "avg_region_similarity + avg_rel_similarity",
-                "sqrt_seg_64points + avg_region_similarity",
-                "sqrt_seg_64points + avg_rel_similarity",
-                "sqrt_num_classes + avg_region_similarity",
-                "sqrt_num_classes + avg_rel_similarity",
-                "sqrt_seg_64points + sqrt_num_classes + avg_region_similarity",
-                "sqrt_seg_64points + sqrt_num_classes + avg_rel_similarity",
-                "sqrt_seg_64points + sqrt_num_classes + avg_region_similarity + avg_rel_similarity",
-                "seg_64points_norm",
-                "seg_64points_norm + num_classes_norm",
-                "num_classes_norm",
-                "seg_64points_norm + num_classes_norm + avg_region_similarity",
-                "seg_64points_norm + num_classes_norm + avg_rel_similarity",
-                "seg_64points_norm + num_classes_norm + avg_region_similarity + avg_rel_similarity",
-                "seg_64points_norm + num_classes_norm + avg_region_similarity_norm",
-                "seg_64points_norm + num_classes_norm + avg_rel_similarity_norm",
-                "seg_64points_norm + num_classes_norm + avg_region_similarity_norm + avg_rel_similarity_norm",
-            ]
 
             fit_mod(model_strs, df_train, df_test)
 

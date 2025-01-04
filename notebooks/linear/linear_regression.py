@@ -43,6 +43,8 @@ def line_regression(target, model_str, df_train, df_test, return_preds=False):
     }
 
     if return_preds:
-        out["predictions"] = y_test
+        # Create dictionary mapping image IDs to predictions using image_id column
+        predictions = dict(zip(df_test["image_id"], y_test))
+        out["predictions"] = predictions
 
     return out
